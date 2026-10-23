@@ -263,14 +263,20 @@ if (!has('--no-verify')) {
 
 // ── 5. 三行交接件 ────────────────────────────────────────────────────
 const failed = results.filter(r => r.ok === false)
+const pending = results.filter(r => r.ok === null)
+// ⚠️ 「已知没做」要**如实反映**每一项的状态：失败项和未测项都要写出来。
+// 早先的版本不管怎样都写死「视图②手机热点尚未人工验证」—— 视角②已经能自动跑通后，
+// 这句话就变成**假的了**。交接件里出现假信息比缺信息更糟（第三行最值钱）。
+const notDone = [
+  ...failed.map(r => `${r.view} 未通过（${r.detail}）`),
+  ...pending.map(r => `${r.view} 未测（${r.detail}）`),
+]
 console.log('\n' + '─'.repeat(64))
 console.log('📦 三行交接件')
 console.log('─'.repeat(64))
 console.log(`产物：${SITE_URL}  （v${nextVersion} / 内容指纹 ${contentHash}）`)
 console.log(`怎么验：curl -s -o NUL -w "%{http_code}" ${SITE_URL}  或直接点开链接`)
-console.log(`已知没做：${failed.length === 0
-  ? '视图②手机热点尚未人工验证（脚本无法代做）'
-  : failed.map(r => `${r.view} 未通过（${r.detail}）`).join('；')}`)
+console.log(`已知没做：${notDone.length === 0 ? '本次三视角全部通过，无遗留' : notDone.join('；')}`)
 console.log('─'.repeat(64))
 console.log(`线上地址：${SITE_URL}`)
 console.log(`版本    ：v${nextVersion}  内容指纹 ${contentHash}  commit ${short}`)
