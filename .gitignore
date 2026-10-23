@@ -1,0 +1,4 @@
+﻿# 本地产物与工具缓存
+node_modules/
+.verify/
+*.log
