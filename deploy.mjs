@@ -176,6 +176,35 @@ if (!has('--no-verify')) {
 // ── 4. 三视角验证 ────────────────────────────────────────────────────
 const results = []
 
+/**
+ * 从默认网关判断「当前是否在手机热点」。
+ *
+ * ⚠️ 这不是权威判定，只是**启发式**：手机热点的网关落在特定私有段
+ *（Android 热点 192.168.43.x、iOS 热点 192.168.147.x 等），
+ * 而家用/办公网段一般不是这些。**判错了的后果只是「该视角没测」**，
+ * 不会给出错误的「已通过」—— 宁可漏报，不可误报。
+ */
+function detectHotspot() {
+  const HOTSPOT_GATEWAYS = [
+    /^192\.168\.43\./,   // Android 热点
+    /^192\.168\.147\./,  // iOS 个人热点
+    /^192\.168\.222\./,  // 部分安卓
+    /^172\.20\.10\./,    // iOS 热点旧版
+  ]
+  try {
+    const output = run('powershell.exe', [
+      '-NoProfile', '-Command',
+      "Get-NetIPConfiguration | Where-Object { $_.IPv4DefaultGateway -ne $null } | " +
+      "Select-Object -First 1 -ExpandProperty IPv4DefaultGateway | Select-Object -ExpandProperty NextHop",
+    ])
+    const gateway = output.trim()
+    const isHotspot = HOTSPOT_GATEWAYS.some(pattern => pattern.test(gateway))
+    return { gateway: gateway || '未知', isHotspot }
+  } catch {
+    return { gateway: '未知', isHotspot: false }
+  }
+}
+
 if (!has('--no-verify')) {
   console.log('\n▶ 视角① 本机 curl')
   try {
@@ -190,9 +219,28 @@ if (!has('--no-verify')) {
   }
 
   console.log('\n▶ 视角② 手机热点（换运营商）')
-  console.log('   ⚠️  需人工：切到手机热点后执行')
-  console.log(`      curl -s -o NUL -w "%{http_code}" ${SITE_URL}`)
-  results.push({ view: '手机热点', ok: null, detail: '需人工执行' })
+  // ⚠️ 2026-10-23 补强：**不再靠人工切网** —— 从默认网关判断当前网络。
+  // 手机热点的典型网关是 `192.168.43.x`（Android 热点）/ `192.168.147.x`（iOS 热点）
+  // 等；家用/办公网段一般不是这些。判定为热点时**直接跑一次 curl**，
+  // 于是三视角能在「人已经切到热点时」自动留痕，不必脚本代做判断。
+  const hotspot = detectHotspot()
+  if (hotspot.isHotspot) {
+    console.log(`   🔍 检测到当前在热点（网关 ${hotspot.gateway}）→ 直接测`)
+    try {
+      const output = run('curl.exe', ['-s', '-o', 'NUL', '-w', '%{http_code} %{time_total}', '--max-time', '20', SITE_URL])
+      const [code, seconds] = output.trim().split(/\s+/)
+      const ok = code === '200'
+      results.push({ view: '手机热点', ok, detail: `HTTP ${code} / ${Number(seconds).toFixed(2)}s / 网关 ${hotspot.gateway}` })
+      console.log(`   ${ok ? '✅' : '❌'} HTTP ${code}  ${Number(seconds).toFixed(2)}s  （网关 ${hotspot.gateway}）`)
+    } catch (error) {
+      results.push({ view: '手机热点', ok: false, detail: error.message.split('\n')[0] })
+      console.log(`   ❌ ${error.message.split('\n')[0]}`)
+    }
+  } else {
+    console.log(`   ⚠️  当前不在热点（网关 ${hotspot.gateway ?? '未知'}）—— 切到手机热点后重跑本脚本即可自动补测`)
+    console.log(`      curl -s -o NUL -w "%{http_code}" ${SITE_URL}`)
+    results.push({ view: '手机热点', ok: null, detail: '未在热点，待人工切网后重跑' })
+  }
 
   console.log('\n▶ 视角③ 外部多点探测')
   const probe = path.join('C:\\Users\\anyi2\\.workbuddy\\agent-log', 'tools', 'check-host-probe.mjs')
@@ -218,14 +266,14 @@ const failed = results.filter(r => r.ok === false)
 console.log('\n' + '─'.repeat(64))
 console.log('📦 三行交接件')
 console.log('─'.repeat(64))
-console.log(`产物：${SITE_URL}  （commit ${short}）`)
+console.log(`产物：${SITE_URL}  （v${nextVersion} / 内容指纹 ${contentHash}）`)
 console.log(`怎么验：curl -s -o NUL -w "%{http_code}" ${SITE_URL}  或直接点开链接`)
 console.log(`已知没做：${failed.length === 0
   ? '视图②手机热点尚未人工验证（脚本无法代做）'
   : failed.map(r => `${r.view} 未通过（${r.detail}）`).join('；')}`)
 console.log('─'.repeat(64))
 console.log(`线上地址：${SITE_URL}`)
-console.log(`commit  ：${commit}`)
+console.log(`版本    ：v${nextVersion}  内容指纹 ${contentHash}  commit ${short}`)
 console.log(`时间    ：${new Date().toLocaleString('zh-CN')}`)
 
 if (failed.length > 0) process.exitCode = 1
