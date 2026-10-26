@@ -30,11 +30,23 @@
   }
 
   function renderAll() {
+    renderMode();
     renderStats();
     renderBar();
     renderGrid();
     renderDetail();
     renderLog();
+  }
+
+  function renderMode() {
+    var host = $("modebar");
+    if (!host) return;
+    var sc = SCENARIOS[state.key];
+    var html = "<b>" + sc.label + "</b> · " + (sc.desc || "");
+    if (state.flaky) {
+      html += "<br><span style=\"color:#d29922\">⚠ 本档含 flaky commit：遇到结果不稳定时请 skip，不要据此收窄区间。</span>";
+    }
+    host.innerHTML = html;
   }
 
   function renderStats() {
@@ -68,6 +80,7 @@
 
   function renderGrid() {
     var host = $("grid");
+    host.className = state.n >= 128 ? "grid dense" : "grid";
     var html = "";
     for (var i = 1; i <= state.n; i++) {
       var cls = "cell";

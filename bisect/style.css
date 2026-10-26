@@ -23,6 +23,9 @@ main{display:grid;gap:16px;padding:16px 24px 40px;max-width:1180px}
 .split{display:grid;grid-template-columns:1.4fr 1fr;gap:20px}
 h2{font-size:13px;text-transform:uppercase;letter-spacing:1px;color:var(--dim);margin:0 0 8px}
 .grid{display:grid;grid-template-columns:repeat(8,1fr);gap:4px}
+.grid.dense{grid-template-columns:repeat(16,1fr);gap:3px}
+.modebar{margin:0 24px 4px;padding:10px 14px;border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:6px;background:#10151b;color:var(--dim);font-size:13px}
+.modebar b{color:#e6e6e6}
 .cell{font:11px/1 monospace;padding:6px 0;text-align:center;background:#1b222b;border:1px solid transparent;border-radius:3px;cursor:pointer}
 .cell:hover{border-color:var(--accent)}
 .cell.sel{border-color:var(--accent);background:#1f2a36}

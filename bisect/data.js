@@ -1,8 +1,11 @@
 // data.js · 场景与 commit 数据（确定性，不随机）
 var SCENARIOS = {
-  "64":  { n: 64,  culprit: 41, flaky: false, label: "64 · 教学" },
-  "128": { n: 128, culprit: 97, flaky: false, label: "128 · 压力" },
-  "flaky": { n: 64, culprit: 23, flaky: true, flakyAt: 33, label: "flaky · 需 skip" }
+  "64":  { n: 64,  culprit: 41, flaky: false, label: "64 · 教学",
+           desc: "6 次是下界：64 = 2^6。乱点也能找到，但会多花步数。" },
+  "128": { n: 128, culprit: 97, flaky: false, label: "128 · 压力",
+           desc: "128 = 2^7：下界 7 次。格子变密，手快不如手稳。" },
+  "flaky": { n: 64, culprit: 23, flaky: true, flakyAt: 33, label: "flaky · 需 skip",
+           desc: "第 33 个 commit 偶发不稳定：跑它会得到不可判定的结果。正确做法是 skip，不计入区间。" }
 };
 
 var MSGS = [
