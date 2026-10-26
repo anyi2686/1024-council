@@ -179,6 +179,16 @@
       "<br>" + (state.steps <= opt ? "达标 —— 你踩在下界上。" : "多了 " + (state.steps - opt) + " 次：不是错，是慢。"),
       "<br><span style=\"color:#8b949e\">截图这句就够：你用 " + state.steps + " 次找到 " + state.n + " 个 commit 里的凶手；最优 " + opt + " 次。</span>"
     ].join("");
+    var line = "BISECT · " + state.n + " 个 commit / 我用 " + state.steps + " 次找到凶手 / 最优 " + opt + " 次";
+    $("cardtext").textContent = line;
+    var btn = $("copy");
+    if (btn) {
+      btn.onclick = function () {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(line).then(function () { btn.textContent = "已复制"; }, function () { btn.textContent = "复制失败，请手选"; });
+        } else { btn.textContent = "此浏览器不支持自动复制"; }
+      };
+    }
     $("path").textContent = buildPath(opt);
     $("reveal").classList.remove("hidden");
   }
