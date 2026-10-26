@@ -205,6 +205,58 @@
     });
   }
 
+  // ---- v0.2：外部可驱动接口 + autoplay + 版本指纹 ----
+  window.BISECT = {
+    state: function () { return state; },
+    reset: function (key) { init(key || "64"); },
+    pick: function (i) { if (state.done) return; state.sel = Number(i); renderAll(); },
+    test: function () { runTest(); },
+    push: function (ev) {
+      if (!ev || !ev.type) return false;
+      if (ev.type === "pick") { window.BISECT.pick(ev.index); return true; }
+      if (ev.type === "test") { runTest(); return true; }
+      if (ev.type === "reset") { init(ev.key || "64"); return true; }
+      return false;
+    }
+  };
+
+  function nextMid() {
+    if (state.done) return null;
+    return Math.floor((state.lo + state.hi) / 2);
+  }
+
+  function startAutoplay() {
+    if (state.done) return;
+    var mid = nextMid();
+    if (mid === null) return;
+    state.sel = mid;
+    renderAll();
+    setTimeout(function () {
+      runTest();
+      if (state.done) {
+        document.title = "DONE " + state.steps + "/" + optimalSteps(state.n);
+      } else {
+        startAutoplay();
+      }
+    }, 620);
+  }
+
+  function loadVersion() {
+    var el = document.getElementById("ver");
+    if (!el) return;
+    fetch("./version.txt", { cache: "no-store" })
+      .then(function (r) { return r.ok ? r.text() : ""; })
+      .then(function (t) {
+        var v = (t || "").trim().split("\n")[0];
+        el.textContent = v ? ("v0.2 · " + v) : "v0.2 · version.txt 未找到";
+      })
+      .catch(function () { el.textContent = "v0.2 · 版本读取失败"; });
+  }
+
   bind();
   init("64");
+  loadVersion();
+  if (new URLSearchParams(location.search).get("autoplay") === "1") {
+    setTimeout(startAutoplay, 300);
+  }
 })();
