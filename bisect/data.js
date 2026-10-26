@@ -1,0 +1,40 @@
+// data.js · 场景与 commit 数据（确定性，不随机）
+var SCENARIOS = {
+  "64":  { n: 64,  culprit: 41, flaky: false, label: "64 · 教学" },
+  "128": { n: 128, culprit: 97, flaky: false, label: "128 · 压力" },
+  "flaky": { n: 64, culprit: 23, flaky: true, flakyAt: 33, label: "flaky · 需 skip" }
+};
+
+var MSGS = [
+  "feat: 登录页骨架", "fix: 空指针", "chore: 升依赖", "feat: 会话中间件",
+  "refactor: 鉴权抽取", "test: 补单测", "fix: 时区偏移", "feat: 审计日志",
+  "style: 格式化", "perf: 缓存预热", "feat: 权限位", "fix: 并发写锁",
+  "chore: 清理死代码", "feat: 限流", "fix: 重试退避", "docs: 注释"
+];
+
+var AUTHORS = ["lin", "zhou", "chen", "wu", "li", "sun"];
+
+function shasum(i) {
+  var h = 2166136261;
+  var s = "commit-" + i;
+  for (var k = 0; k < s.length; k++) { h ^= s.charCodeAt(k); h = (h * 16777619) >>> 0; }
+  var hex = h.toString(16);
+  while (hex.length < 8) hex = "0" + hex;
+  return hex;
+}
+
+function makeCommits(n) {
+  var out = [];
+  for (var i = 1; i <= n; i++) {
+    out.push({
+      i: i,
+      sha: shasum(i),
+      msg: MSGS[(i - 1) % MSGS.length],
+      author: AUTHORS[(i * 7) % AUTHORS.length],
+      day: 1 + Math.floor((i - 1) / 6)
+    });
+  }
+  return out;
+}
+
+function optimalSteps(n) { return Math.ceil(Math.log(n) / Math.log(2)); }

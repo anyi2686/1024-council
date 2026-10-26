@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BISECT · 六次构建找到凶手</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>BISECT<span class="dot">·</span>六次构建找到凶手</h1>
+  <p class="sub">64 个 commit 里有一个引入了 bug。信息论说最低 <b>6</b> 次测试一定能找到它。你几次？</p>
+</header>
+
+<nav id="tabs">
+  <button class="tab active" data-key="64">64 · 教学</button>
+  <button class="tab" data-key="128">128 · 压力</button>
+  <button class="tab" data-key="flaky">flaky · 需 skip</button>
+</nav>
+
+<main>
+  <section class="panel">
+    <div class="row">
+      <div class="stat"><span id="steps">0</span><small>你的测试次数</small></div>
+      <div class="stat"><span id="opt">6</span><small>最优下界 ⌈log₂N⌉</small></div>
+      <div class="stat"><span id="range">1–64</span><small>可疑区间</small></div>
+    </div>
+    <div id="bar" class="bar"></div>
+    <div class="hint" id="hint">点任意格子选一个 commit，然后按「跑测试」。</div>
+  </section>
+
+  <section class="panel split">
+    <div>
+      <h2>Commit 列表</h2>
+      <div id="grid" class="grid"></div>
+    </div>
+    <div>
+      <h2>当前选中</h2>
+      <div id="detail" class="detail"><em>还没选</em></div>
+      <button id="run" class="primary" disabled>跑测试（Enter）</button>
+      <button id="reset" class="ghost">重开</button>
+      <h2>日志</h2>
+      <ol id="log" class="log"></ol>
+    </div>
+  </section>
+
+  <section id="reveal" class="panel reveal hidden">
+    <h2>揭晓</h2>
+    <div id="card" class="card"></div>
+    <div id="path" class="path"></div>
+  </section>
+</main>
+<footer><span>BISECT v0.1 · 纯前端 · 零依赖 · 判定查表不随机（可复现）</span></footer>
+<script src="data.js"></script>
+<script src="bisect.js"></script>
+</body>
+</html>

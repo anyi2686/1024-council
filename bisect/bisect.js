@@ -1,0 +1,210 @@
+// bisect.js · 游戏逻辑（经典脚本，无依赖）
+(function () {
+  "use strict";
+
+  var state = null;
+  var el = {};
+
+  function $(id) { return document.getElementById(id); }
+
+  function init(key) {
+    var sc = SCENARIOS[key];
+    state = {
+      key: key,
+      n: sc.n,
+      culprit: sc.culprit,
+      flaky: !!sc.flaky,
+      flakyAt: sc.flakyAt || 0,
+      flakyHits: 0,
+      commits: makeCommits(sc.n),
+      lo: 1,
+      hi: sc.n,
+      sel: null,
+      results: {},
+      steps: 0,
+      log: [],
+      done: false
+    };
+    $("reveal").classList.add("hidden");
+    renderAll();
+  }
+
+  function renderAll() {
+    renderStats();
+    renderBar();
+    renderGrid();
+    renderDetail();
+    renderLog();
+  }
+
+  function renderStats() {
+    $("steps").textContent = String(state.steps);
+    $("opt").textContent = String(optimalSteps(state.n));
+    $("range").textContent = state.lo + "\u2013" + state.hi;
+  }
+
+  function segClass(i) {
+    var r = state.results[i];
+    var cls = "seg";
+    if (r === "good") cls += " good";
+    else if (r === "bad") cls += " bad";
+    else if (i < state.lo || i > state.hi) cls += " out";
+    if (i === state.sel) cls += " sel";
+    return cls;
+  }
+
+  function renderBar() {
+    var host = $("bar");
+    var html = "";
+    for (var i = 1; i <= state.n; i++) {
+      html += "<div class=\"" + segClass(i).replace("seg", "seg seg") + "\" data-i=\"" + i + "\"></div>";
+    }
+    host.innerHTML = html;
+    var segs = host.querySelectorAll(".seg");
+    for (var k = 0; k < segs.length; k++) {
+      segs[k].addEventListener("click", onPick);
+    }
+  }
+
+  function renderGrid() {
+    var host = $("grid");
+    var html = "";
+    for (var i = 1; i <= state.n; i++) {
+      var cls = "cell";
+      var r = state.results[i];
+      if (r === "good") cls += " good";
+      else if (r === "bad") cls += " bad";
+      else if (i < state.lo || i > state.hi) cls += " out";
+      if (i === state.sel) cls += " sel";
+      html += "<div class=\"" + cls + "\" data-i=\"" + i + "\" title=\"" + esc(state.commits[i - 1].msg) + "\">" + i + "</div>";
+    }
+    host.innerHTML = html;
+    var cells = host.querySelectorAll(".cell");
+    for (var k = 0; k < cells.length; k++) {
+      cells[k].addEventListener("click", onPick);
+    }
+  }
+
+  function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+
+  function renderDetail() {
+    var host = $("detail");
+    var btn = $("run");
+    if (state.done) {
+      host.innerHTML = "<em>已找到凶手，本轮结束。点「重开」再来一次。</em>";
+      btn.disabled = true;
+      return;
+    }
+    if (!state.sel) {
+      host.innerHTML = "<em>还没选。点上面任意格子。</em>";
+      btn.disabled = true;
+      return;
+    }
+    var c = state.commits[state.sel - 1];
+    host.innerHTML = [
+      "commit " + c.i + " · " + c.sha,
+      "author: " + c.author + " · day " + c.day,
+      "msg: " + esc(c.msg),
+      "范围: " + state.lo + "\u2013" + state.hi
+    ].join("<br>");
+    btn.disabled = false;
+  }
+
+  function renderLog() {
+    var host = $("log");
+    var html = "";
+    for (var i = state.log.length - 1; i >= 0; i--) {
+      html += "<li>" + esc(state.log[i]) + "</li>";
+    }
+    host.innerHTML = html;
+  }
+
+  function onPick(ev) {
+    if (state.done) return;
+    var i = Number(ev.currentTarget.getAttribute("data-i"));
+    state.sel = i;
+    renderAll();
+  }
+
+  function runTest() {
+    if (state.done || !state.sel) return;
+    var i = state.sel;
+    if (i < state.lo || i > state.hi) {
+      state.log.push("第 " + (state.steps + 1) + " 次: commit " + i + " 已在范围外，白跑一次");
+      state.steps += 1;
+      renderAll();
+      return;
+    }
+    if (state.flaky && i === state.flakyAt) {
+      state.flakyHits += 1;
+      state.steps += 1;
+      state.log.push("第 " + state.steps + " 次: commit " + i + " => 结果不稳定（不可判定），本次不计入区间 —— 正确做法是 skip");
+      state.sel = null;
+      renderAll();
+      return;
+    }
+    var verdict;
+    {
+      verdict = i >= state.culprit ? "bad" : "good";
+      state.log.push("第 " + (state.steps + 1) + " 次: commit " + i + " => " + (verdict === "bad" ? "BAD（复现）" : "GOOD"));
+    }
+    state.steps += 1;
+    state.results[i] = verdict;
+    if (verdict === "bad") state.hi = Math.min(state.hi, i);
+    else state.lo = Math.max(state.lo, i + 1);
+    state.sel = null;
+    if (state.lo >= state.hi) { state.done = true; state.sel = state.lo; reveal(); }
+    renderAll();
+  }
+
+  function reveal() {
+    var opt = optimalSteps(state.n);
+    var card = $("card");
+    card.innerHTML = [
+      "凶手是 commit <b>" + state.lo + "</b>（" + shasum(state.lo) + "）",
+      "<br>你用了 <b>" + state.steps + "</b> 次测试；最优下界 <b>" + opt + "</b> 次。",
+      "<br>" + (state.steps <= opt ? "达标 —— 你踩在下界上。" : "多了 " + (state.steps - opt) + " 次：不是错，是慢。"),
+      "<br><span style=\"color:#8b949e\">截图这句就够：你用 " + state.steps + " 次找到 " + state.n + " 个 commit 里的凶手；最优 " + opt + " 次。</span>"
+    ].join("");
+    $("path").textContent = buildPath(opt);
+    $("reveal").classList.remove("hidden");
+  }
+
+  function buildPath(opt) {
+    var lines = [];
+    lines.push("你的路径（" + state.steps + " 步）");
+    for (var i = 0; i < state.log.length; i++) lines.push("  " + state.log[i]);
+    lines.push("");
+    lines.push("最优路径（" + opt + " 步，二分）");
+    var lo = 1, hi = state.n, step = 0;
+    while (lo < hi) {
+      step += 1;
+      var mid = Math.floor((lo + hi) / 2);
+      var bad = mid >= state.culprit;
+      lines.push("  " + step + ". test " + mid + " => " + (bad ? "BAD" : "GOOD") + "  [" + lo + "-" + hi + "]");
+      if (bad) hi = mid; else lo = mid + 1;
+    }
+    lines.push("  => commit " + lo + " 是凶手");
+    return lines.join("\n");
+  }
+
+  function bind() {
+    var tabs = document.querySelectorAll(".tab");
+    for (var i = 0; i < tabs.length; i++) {
+      tabs[i].addEventListener("click", function (ev) {
+        var t = ev.currentTarget;
+        for (var k = 0; k < tabs.length; k++) tabs[k].classList.remove("active");
+        t.classList.add("active");
+        init(t.getAttribute("data-key"));
+      });
+    }
+    $("run").addEventListener("click", runTest);
+    $("reset").addEventListener("click", function () { init(state.key); });
+    document.addEventListener("keydown", function (ev) {
+      if (ev.key === "Enter") runTest();
+    });
+  }
+
+  bind();
+  init("64");
+})();
