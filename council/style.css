@@ -26,6 +26,7 @@ html, body {
   font-family: var(--mono);
   font-size: 14px;
   line-height: 1.6;
+  overflow-x: hidden; /* 390 宽手机兜底防横向滚动 */
 }
 
 body {
@@ -354,4 +355,15 @@ code { background: #161b22; padding: 1px 5px; border-radius: 3px; font-size: 12p
   body { padding: 12px; }
   .content { padding: 16px; }
   .hud .right { margin-left: 0; }
+}
+
+/* 390 宽手机：进一步收紧，意见卡单列适配 */
+@media (max-width: 480px) {
+  body { padding: 8px; font-size: 13px; }
+  .content { padding: 12px; }
+  .opinions { grid-template-columns: 1fr; }
+  .input-panel { padding: 12px; }
+  .stage-panel { padding: 10px 8px 6px; }
+  .verdict-card, .degraded-card { padding: 14px 12px; }
+  .hud { padding: 8px 10px; font-size: 12px; }
 }
