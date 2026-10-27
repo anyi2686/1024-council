@@ -1,1 +1,1 @@
-v0.6 2026-10-27 index:a8928caa29e2 app:c6550e1b0c94 engine:87fa402026a4 style:0720ad15fcc1 demo-data:f0af3c769d23
+v0.6 2026-10-27 (sha256:12) index:26b014c90a66 app:e2bb7ba28cf5 engine:4e24e2cbe469 style:422566a3c96f demo-data:aeed538e57ce
