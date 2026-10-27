@@ -1,13 +1,14 @@
 /**
  * 九人议会 · UI 渲染逻辑（Doubao）
  *
- * 引擎接入（唯一切换点）：
- *   开发期用 mock-engine；真实引擎 10/26 实现后，把下面第一行改为
- *   `import { runCouncil, STANCES, DEMO_PROPOSAL } from './engine.js';`
- *   （DEMO_PROPOSAL 若引擎未导出，可从 demo-data 引入或删除「试一个」）。
+ * 引擎接入：2026-10-27 已切到真实引擎 engine.js（原 mock 切换点已闭合）。
+ *   改动背景：豆包侧 10-23 后停摆，10-30 检查点前必须真引擎上线，
+ *   由 step-5（引擎方）按同一事件契约完成接线；mock-engine.js 保留作参考对照。
+ *   事件契约：engine.js 9 类事件全量处理（含 proposal_received）。
+ *   ⚠️ 豆包回来后请 review 本条改动（接线 + I1 三十秒判据接口 + 版本戳），
+ *      有不同实现意图可直接再改 —— 改动日志见 git log，欢迎推翻重做。
  */
-import { runCouncil, STANCES, DEMO_PROPOSAL } from './mock-engine.js';
-import { EVENTS } from './engine.js';
+import { runCouncil, STANCES, DEMO_PROPOSAL, EVENTS } from './engine.js';
 
 const SVGNS = 'http://www.w3.org/2000/svg';
 const $ = (id) => document.getElementById(id);
@@ -286,6 +287,9 @@ function handleEvent(e) {
       $('hud-run').textContent = e.runId.slice(0, 18) + '…';
       setStage('正在分类意图');
       break;
+    case EVENTS.PROPOSAL_RECEIVED:
+      $('center-sub').textContent = `已收到：${(e.title || '无标题提案').slice(0, 20)}`;
+      break;
     case EVENTS.PROPOSAL_TYPED:
       setStage('四视角审议中');
       $('center-stage').textContent = '视角发言中';
@@ -356,3 +360,17 @@ $('btn-demo').addEventListener('click', () => {
   $('in-body').value = DEMO_PROPOSAL.body;
   start(DEMO_PROPOSAL);
 });
+
+// ─────────────────────────────────────────────
+// 外部接口（I1 三十秒判据用）
+// ─────────────────────────────────────────────
+
+/** 供验收/测试外部驱动： CouncilUI.push(event) 注入单事件，或 CouncilUI.start(proposal) 跑全程。 */
+window.CouncilUI = { push: handleEvent, start, EVENTS };
+
+// ?autoplay=1：打开即自动跑引导提案（秒表从页面加载完成起算，无需点击）
+if (new URLSearchParams(location.search).get('autoplay') === '1') {
+  $('in-title').value = DEMO_PROPOSAL.title;
+  $('in-body').value = DEMO_PROPOSAL.body;
+  start(DEMO_PROPOSAL);
+}
