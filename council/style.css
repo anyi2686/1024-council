@@ -198,7 +198,7 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   stroke-width: 1.5;
   stroke-dasharray: 4 5;
   fill: none;
-  opacity: 0.55;
+  opacity: 0.3; /* 改更浅：只作背景提示，不抢反驳弧线 */
 }
 .rebuttal-arc {
   stroke: var(--accent);
@@ -207,6 +207,10 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   stroke-dasharray: 6 4;
   animation: dash 0.8s linear infinite;
 }
+/* 弧线按目标立场分色 */
+.rebuttal-arc.arc-support { stroke: var(--ok); }
+.rebuttal-arc.arc-conditional { stroke: var(--warn); }
+.rebuttal-arc.arc-oppose { stroke: var(--danger); }
 @keyframes dash { to { stroke-dashoffset: -20; } }
 .arc-round {
   fill: var(--accent);

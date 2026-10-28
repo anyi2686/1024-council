@@ -214,6 +214,7 @@ function resetUI() {
   conflictsTotal = 0;
   opinionsSeen = 0;
   arcCounts = {};
+  positionsMap = {};
   setStage('准备中…');
   setConv(0, 0);
   $('hud-run').textContent = '—';
@@ -288,13 +289,19 @@ async function fillOpinionCard(stanceId, opinion) {
 
 function ensureArrow() {
   const svg = $('ring');
-  if (svg.querySelector('#arrow')) return;
+  if (svg.querySelector('#arrow-support')) return;
   const defs = document.createElementNS(SVGNS, 'defs');
-  defs.innerHTML = `
-    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5"
+  // 三色箭头：按目标立场分（绿=支持/黄=有条件/红=反对）
+  const colors = [
+    ['support', '#3fb950'],
+    ['conditional', '#d29922'],
+    ['oppose', '#f85149'],
+  ];
+  defs.innerHTML = colors.map(([id, color]) => `
+    <marker id="arrow-${id}" viewBox="0 0 10 10" refX="9" refY="5"
       markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-      <path d="M0,0 L10,5 L0,10 z" fill="#58a6ff"></path>
-    </marker>`;
+      <path d="M0,0 L10,5 L0,10 z" fill="${color}"></path>
+    </marker>`).join('');
   svg.insertBefore(defs, svg.firstChild);
 }
 
@@ -333,10 +340,12 @@ function drawRebuttal(rebuttal) {
   const cy = my + (dx / len) * off;
 
   ensureArrow();
+  // 按目标（to）立场分色：弧线 + 箭头
+  const toPos = positionsMap[to] || 'conditional';
   const path = document.createElementNS(SVGNS, 'path');
   path.setAttribute('d', `M ${p1.x} ${p1.y} Q ${cx} ${cy} ${p2.x} ${p2.y}`);
-  path.setAttribute('class', 'rebuttal-arc');
-  path.setAttribute('marker-end', 'url(#arrow)');
+  path.setAttribute('class', `rebuttal-arc arc-${toPos}`);
+  path.setAttribute('marker-end', `url(#arrow-${toPos})`);
   $('arcs').appendChild(path);
 
   // round 徽标（弧线顶点附近）
@@ -434,6 +443,7 @@ function handleEvent(e) {
       break;
     case EVENTS.STANCE_OPINION:
       opinionsSeen += 1;
+      positionsMap[e.stanceId] = e.opinion.position;
       activateNode(e.stanceId, e.opinion);
       fillOpinionCard(e.stanceId, e.opinion);
       playSfx(sfxWake); // 节点唤醒音，和点亮同步，共 4 声
