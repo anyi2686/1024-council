@@ -52,7 +52,7 @@
         </div>
 
         <!-- 主舞台：环形对抗图 -->
-        <div class="stage-panel">
+        <div class="stage-panel" id="stage-panel">
           <h2>环形对抗图</h2>
           <svg class="ring-svg" viewBox="0 0 600 500" id="ring" aria-label="四视角环形对抗图">
             <!-- 弧线层（冲突/反驳，由 app.js 动态绘制） -->
@@ -123,7 +123,7 @@
 
         <footer>
           <span>静态站点 · 零外链统计 · 零硬编码密钥</span>
-          <span>引擎：<code>确定性规则（查表）</code> · 版本 v0.11（指纹见 <code>version.txt</code>）</span>
+          <span>引擎：<code>确定性规则（查表）</code> · 版本 v0.12（指纹见 <code>version.txt</code>）</span>
           <button type="button" id="scrollAdjustBtn" class="linkbtn">⚙ 调整下滑位置</button>
           <a href="../index.html" style="color:var(--accent);text-decoration:none">← 返回目录</a>
           <a href="../bisect/index.html" style="color:var(--dim);text-decoration:none">BISECT 副玩法 →</a>
@@ -134,14 +134,20 @@
 
   <script type="module" src="./app.js"></script>
 
-  <!-- 下滑位置调整横幅（footer ⚙ 进入；滚到理想位 → 保存 → 隐藏） -->
+  <!-- 下滑位置调整横幅（footer ⚙ 进入；两段目标各自调；滚到理想位 → 保存 → 隐藏） -->
   <div id="scrollBar" class="scroll-bar hidden">
-    <span>下滑调整模式：滚到你希望审议区停留的位置 →</span>
+    <span class="sb-seg">调整目标：
+      <button type="button" class="seg-btn active" data-seg="stage">① 审议区</button>
+      <button type="button" class="seg-btn" data-seg="verdict">② 结论区</button>
+    </span>
     <span class="sb-delta" id="scrollDelta">当前偏移 0px</span>
     <button type="button" id="scrollSave" class="primary sm">保存位置</button>
     <button type="button" id="scrollReset" class="ghost sm">恢复默认</button>
     <button type="button" id="scrollCancel" class="ghost sm">取消</button>
   </div>
+
+  <!-- 结论区一键下滑箭头（裁决出现后从右侧中部浮出） -->
+  <button type="button" id="toVerdict" class="to-verdict hidden" aria-label="下滑到结论区" title="下滑到结论区">↓<span>结论</span></button>
 
   <!-- 结论区悬浮放大镜（hover 预览 / click 钉住 / Esc 关；标题栏可拖移；样式与逻辑见 style.css 与 app.js） -->
   <div id="zoom" class="zoom hidden" role="dialog" aria-label="结论放大视图">

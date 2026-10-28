@@ -555,3 +555,55 @@ code { background: #161b22; padding: 1px 5px; border-radius: 3px; font-size: 12p
   .scroll-bar { left: 8px; right: 8px; transform: none; }
   .linkbtn { margin: 0 4px; }
 }
+
+/* ── v0.12（2026-10-28 anyi2）：修 stage-panel 缺 id + 横幅关不掉 + 结论下滑箭头 ── */
+
+/* 🔧 修 .hidden 被后规则覆盖（.scroll-bar/.to-verdict 的 display 会赢过 .hidden） */
+.scroll-bar.hidden, .to-verdict.hidden { display: none; }
+
+/* 结论区一键下滑箭头：右侧中部，裁决出现后浮出，轻推三下引人注意 */
+.to-verdict {
+  position: fixed;
+  right: 18px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 65;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  background: #0d1117;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 16px;
+  line-height: 1;
+  padding: 10px 8px;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  animation: nudge 1.6s ease-in-out 3;
+}
+.to-verdict span { font-size: 11px; }
+.to-verdict:hover { background: #1c2330; }
+@keyframes nudge {
+  0%, 100% { transform: translateY(-50%); }
+  50% { transform: translateY(calc(-50% + 5px)); }
+}
+
+/* 调整横幅的目标段选择器 */
+.sb-seg { display: inline-flex; align-items: center; gap: 6px; }
+.seg-btn {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--dim);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 3px 10px;
+  cursor: pointer;
+}
+.seg-btn.active { color: var(--accent); border-color: var(--accent); background: rgba(88, 166, 255, 0.08); }
+@media (max-width: 480px) {
+  .to-verdict { right: 10px; padding: 8px 7px; font-size: 14px; }
+}
