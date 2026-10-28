@@ -97,6 +97,16 @@ function setConv(resolved, total) {
   el.classList.toggle('ok', total > 0 && resolved === total);
 }
 
+/** 开始审议后丝滑下滑到审议区（HUD + 环形图进入视口）——评委点完就知道该看哪。 */
+function scrollToHud() {
+  const el = $('hud');
+  if (!el || typeof el.getBoundingClientRect !== 'function') return;
+  const reduce = typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const y = el.getBoundingClientRect().top + (window.scrollY || 0) - 12;
+  window.scrollTo({ top: Math.max(0, y), behavior: reduce ? 'auto' : 'smooth' });
+}
+
 // ─────────────────────────────────────────────
 // 重置（run_started 前清场）
 // ─────────────────────────────────────────────
@@ -160,7 +170,10 @@ async function fillOpinionCard(stanceId, opinion) {
   badge.className = `badge ${opinion.position}`;
   badge.textContent = POS_LABEL[opinion.position];
 
+  const stanceName = (STANCES.find((s) => s.id === stanceId) || {}).name || stanceId;
   const box = document.createElement('div');
+  box.classList.add('zoomable');
+  box.setAttribute('data-zoom-title', `${stanceName} · 意见`);
   box.innerHTML = `
     <div class="judgment"></div>
     <div class="q-title">追问：</div>
@@ -361,6 +374,7 @@ function handleEvent(e) {
 function start(proposal) {
   if (current?.cancel) current.cancel();
   resetUI();
+  scrollToHud(); // 丝滑下滑到审议区：评委点完就知道该看哪
   const r = runCouncil(proposal, (e) => {
     // 并发保护：旧 run 的事件一律忽略（配合 cancel 清定时器，双保险）
     if (current !== r) return;
@@ -438,9 +452,11 @@ const zoomEl = $('zoom');
 const zoomInner = $('zoomInner');
 let zoomPinned = false;
 let zoomTimer = null;
+let zoomManual = false; // 手动拖移过后，自动定位让位（位置即最终位置）
 
-/** 定位：贴触发块右侧，空间不够翻左侧，再不够居中；垂直方向钳在视口内。 */
+/** 定位：贴触发块右侧，空间不够翻左侧，再不够居中；垂直方向钳在视口内。手动拖移过则不再自动定位。 */
 function zoomPlace(block) {
+  if (zoomManual) return; // 用户拖过的位置即最终位置，尊重
   const r = block.getBoundingClientRect();
   const zw = zoomEl.offsetWidth;
   const zh = zoomEl.offsetHeight;
@@ -457,6 +473,7 @@ function zoomOpen(block) {
   const title = block.getAttribute('data-zoom-title') || '详情';
   zoomInner.innerHTML = `<h3 class="zoom-title">${title}</h3><div class="zoom-body">${block.innerHTML}</div>`;
   zoomEl.classList.remove('hidden');
+  zoomEl.classList.remove('handle-hidden'); // 每次打开重新显示手柄（调整完再淡出）
   zoomPlace(block);
 }
 
@@ -500,3 +517,44 @@ document.addEventListener('click', (e) => {
   if (zoomPinned) zoomClose(); // 罩外点击且处于钉住态 = 关闭
 });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') zoomClose(); });
+
+// ─────────────────────────────────────────────
+// 放大窗拖移（anyi2 2026-10-28 需求）：手柄拖动定位，钳在视口内；
+// 拖移过后位置粘滞（不再自动定位），手柄淡出让位；悬停面板可重新唤出手柄
+// ─────────────────────────────────────────────
+
+const zoomHandle = $('zoomHandle');
+let zoomDragging = false;
+let zoomDragOff = { x: 0, y: 0 };
+
+zoomHandle.addEventListener('pointerdown', (e) => {
+  zoomDragging = true;
+  const r = zoomEl.getBoundingClientRect();
+  zoomDragOff.x = e.clientX - r.left;
+  zoomDragOff.y = e.clientY - r.top;
+  zoomHandle.setPointerCapture(e.pointerId);
+  zoomEl.classList.add('dragging');
+  e.preventDefault();
+});
+zoomHandle.addEventListener('pointermove', (e) => {
+  if (!zoomDragging) return;
+  const w = zoomEl.offsetWidth;
+  const h = zoomEl.offsetHeight;
+  const x = Math.min(Math.max(4, e.clientX - zoomDragOff.x), Math.max(4, window.innerWidth - w - 4));
+  const y = Math.min(Math.max(4, e.clientY - zoomDragOff.y), Math.max(4, window.innerHeight - h - 4));
+  zoomEl.style.left = `${Math.round(x)}px`;
+  zoomEl.style.top = `${Math.round(y)}px`;
+  zoomManual = true;
+});
+function zoomDragEnd(e) {
+  if (!zoomDragging) return;
+  zoomDragging = false;
+  zoomEl.classList.remove('dragging');
+  if (e && e.pointerId !== undefined && zoomHandle.releasePointerCapture) {
+    try { zoomHandle.releasePointerCapture(e.pointerId); } catch (_) { /* 已释放则忽略 */ }
+  }
+  zoomEl.classList.add('handle-hidden'); // 调整完毕：手柄淡出（悬停面板可唤回）
+}
+zoomHandle.addEventListener('pointerup', zoomDragEnd);
+zoomHandle.addEventListener('pointercancel', zoomDragEnd);
+zoomEl.addEventListener('mouseenter', () => zoomEl.classList.remove('handle-hidden'));
