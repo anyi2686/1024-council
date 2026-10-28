@@ -61,6 +61,21 @@
   li b { color: var(--fg); font-weight: 600; }
   .lens { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 7px; }
   .lens span { border: 1px solid var(--line); border-radius: 4px; padding: 6px 9px; font-size: 12px; color: var(--dim); }
+  .cta { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
+  .cta a {
+    display: block; text-decoration: none; color: var(--fg);
+    border: 1px solid var(--line); border-radius: 5px; padding: 13px 15px;
+    background: #0f1420; transition: border-color .15s, background .15s;
+  }
+  .cta a:hover { border-color: var(--accent); background: #121a28; }
+  .cta a b { display: block; font-size: 13.5px; color: var(--accent); margin-bottom: 4px; font-weight: 600; }
+  .cta a span { display: block; font-size: 12px; color: var(--dim); line-height: 1.55; }
+  .cta a .tag {
+    display: inline-block; margin-top: 7px; border: 1px solid var(--line);
+    border-radius: 3px; padding: 1px 6px; font-size: 11px; color: var(--dim);
+  }
+  .live { border-color: var(--ok); color: var(--ok); }
+  .live .blink { background: var(--ok); }
   pre {
     margin: 0; padding: 13px 15px; overflow-x: auto;
     background: #010409; border: 1px solid var(--line); border-radius: 5px;
@@ -77,26 +92,43 @@
       <div class="bar">
         <span class="dot a"></span><span class="dot b"></span><span class="dot c"></span>
         <span>九人议会 — 多视角审议台</span>
-        <span class="sp">1024 造物挑战 · 占位页</span>
+        <span class="sp">1024 造物挑战 · 已上线</span>
       </div>
 
       <div class="body">
         <h1>九人议会 · 多视角审议台</h1>
-        <p class="sub">把一次决策拆给九个视角，让对抗可见、可追溯、可复现。</p>
+        <p class="sub">把一次决策拆给多个视角，让对抗可见、可追溯、可复现。</p>
 
-        <div class="status"><span class="blink"></span> 建设中 — 核心链路正在实现（10/25 起）</div>
+        <div class="status live"><span class="blink"></span> 核心链路已跑通 — 引擎自测 31/31，通过后可直接体验</div>
+
+        <div class="panel">
+          <h2>▶ 直接体验</h2>
+          <div class="cta">
+            <a href="./council/index.html">
+              <b>九人议会 · 主作品</b>
+              <span>喂一条任意提案，看四个视角如何产生意见、检出冲突、互相反驳，最后给出加权裁决。引擎是真规则不是模板。</span>
+              <span class="tag">可交互 · 12.7s 出裁决</span>
+            </a>
+            <a href="./bisect/index.html">
+              <b>BISECT · 副玩法</b>
+              <span>在 64/128 档里用最少的步数找出坏 commit。判定是查表的，跑两次结果完全一致 —— 顺带教你怎么 skip 掉 flaky 点。</span>
+              <span class="tag">可交互 · 三档剧本</span>
+            </a>
+          </div>
+        </div>
 
         <div class="panel">
           <h2>核心机制</h2>
           <ul>
-            <li><b>真对抗，不是模板填表</b>：九个视角的意见条目化后做冲突检测，命中即生成反驳链。</li>
+            <li><b>真对抗，不是模板填表</b>：视角的意见条目化后做冲突检测，命中即生成反驳链。</li>
             <li><b>接任意提案</b>：提案先做意图分类 + 关键词抽取，各视角按立场透镜生成「立场 / 追问 / 初始判断」。</li>
             <li><b>看得见系统在运转</b>：异议做成可见状态机，节点随推理逐个点亮。</li>
+            <li><b>退化态也可用</b>：抽不出意图时返回 <code>degraded</code> + 下一步提示，不静默不空白。</li>
           </ul>
         </div>
 
         <div class="panel">
-          <h2>九个视角透镜</h2>
+          <h2>视角透镜</h2>
           <div class="lens">
             <span>风险</span><span>成本</span><span>创意</span><span>用户</span>
             <span>技术</span><span>安全</span><span>运营</span><span>法务</span><span>极端用户</span>
@@ -107,7 +139,7 @@
           <h2>事件流（UI 按此订阅渲染）</h2>
 <pre><span class="c"># 事件序列</span>
 proposal_received
-  → stance_opinion × <span class="s">9</span>
+  → stance_opinion × <span class="s">N</span>
   → conflict_detected
   → rebuttal(round <span class="s">n</span>)
   → verdict_ready
