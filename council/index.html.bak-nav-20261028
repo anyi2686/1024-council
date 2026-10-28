@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>九人议会 · 多视角审议台</title>
+<meta name="description" content="1024 造物挑战 · 九人议会 —— 把一次决策拆给四个视角，让对抗可见、可追溯、可复现。">
+<link rel="stylesheet" href="./style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='2' fill='%230b0e14'/%3E%3Cpath d='M3 5l3 3-3 3M8.5 11H13' stroke='%2358a6ff' stroke-width='1.4' fill='none' stroke-linecap='round'/%3E%3C/svg%3E">
+</head>
+<body>
+  <div class="wrap">
+    <div class="frame">
+      <div class="bar">
+        <span class="dot a"></span><span class="dot b"></span><span class="dot c"></span>
+        <span>九人议会 — 多视角审议台</span>
+        <span class="sp">1024 造物挑战</span>
+      </div>
+
+      <div class="content">
+        <h1>九人议会 · 多视角审议台</h1>
+        <p class="sub">输入一个提案，看四个视角如何对质、被驳、改写，最终给出可追溯的裁决。</p>
+
+        <!-- HUD -->
+        <div class="hud" id="hud">
+          <span><span class="k">runId：</span><span class="v" id="hud-run">—</span></span>
+          <span><span class="k">阶段：</span><span class="stage" id="hud-stage">待开始</span></span>
+          <span class="right"><span class="k">冲突收敛：</span><span class="conv" id="hud-conv">0/0</span></span>
+        </div>
+
+        <!-- 输入区 -->
+        <div class="input-panel">
+          <h2>提交提案</h2>
+          <label for="in-title">标题（可空）</label>
+          <input type="text" id="in-title" placeholder="例：给核心功能加 7 天 Pro 免费试用">
+          <label for="in-body">正文</label>
+          <textarea id="in-body" placeholder="说清楚你想做什么、为什么、希望达到什么效果……"></textarea>
+          <div class="btns">
+            <button class="primary" id="btn-run">开始审议</button>
+            <button class="ghost" id="btn-demo">试一个</button>
+          </div>
+        </div>
+
+        <!-- 主舞台：环形对抗图 -->
+        <div class="stage-panel">
+          <h2>环形对抗图</h2>
+          <svg class="ring-svg" viewBox="0 0 600 500" id="ring" aria-label="四视角环形对抗图">
+            <!-- 弧线层（冲突/反驳，由 app.js 动态绘制） -->
+            <g id="arcs"></g>
+
+            <!-- 中心阶段提示 -->
+            <text class="center-stage" id="center-stage" x="300" y="245">等待提案</text>
+            <text class="center-stage" id="center-sub" x="300" y="268" style="font-size:11px">输入后点「开始审议」</text>
+
+            <!-- 上：风险哨兵 -->
+            <g id="node-risk">
+              <circle class="node-circle idle" cx="300" cy="95" r="40"></circle>
+              <text class="node-label" x="300" y="92">风险哨兵</text>
+              <text class="node-pos" x="300" y="110">待激活</text>
+            </g>
+            <!-- 右：成本会计 -->
+            <g id="node-cost">
+              <circle class="node-circle idle" cx="455" cy="250" r="40"></circle>
+              <text class="node-label" x="455" y="247">成本会计</text>
+              <text class="node-pos" x="455" y="265">待激活</text>
+            </g>
+            <!-- 下：创意催化剂 -->
+            <g id="node-creative">
+              <circle class="node-circle idle" cx="300" cy="405" r="40"></circle>
+              <text class="node-label" x="300" y="402">创意催化剂</text>
+              <text class="node-pos" x="300" y="420">待激活</text>
+            </g>
+            <!-- 左：用户代言 -->
+            <g id="node-user">
+              <circle class="node-circle idle" cx="145" cy="250" r="40"></circle>
+              <text class="node-label" x="145" y="247">用户代言</text>
+              <text class="node-pos" x="145" y="265">待激活</text>
+            </g>
+          </svg>
+        </div>
+
+        <!-- 意见卡条带 -->
+        <div class="opinions" id="opinions">
+          <div class="opinion-card" id="op-risk">
+            <div class="head"><span class="name">风险哨兵</span><span class="badge" id="badge-risk">待激活</span></div>
+            <p class="placeholder-line" id="ph-risk">等待发表意见…</p>
+          </div>
+          <div class="opinion-card" id="op-cost">
+            <div class="head"><span class="name">成本会计</span><span class="badge" id="badge-cost">待激活</span></div>
+            <p class="placeholder-line" id="ph-cost">等待发表意见…</p>
+          </div>
+          <div class="opinion-card" id="op-creative">
+            <div class="head"><span class="name">创意催化剂</span><span class="badge" id="badge-creative">待激活</span></div>
+            <p class="placeholder-line" id="ph-creative">等待发表意见…</p>
+          </div>
+          <div class="opinion-card" id="op-user">
+            <div class="head"><span class="name">用户代言</span><span class="badge" id="badge-user">待激活</span></div>
+            <p class="placeholder-line" id="ph-user">等待发表意见…</p>
+          </div>
+        </div>
+
+        <!-- 裁决生成过渡（隐藏） -->
+        <div class="verdict-pending hidden" id="verdict-pending">
+          <span class="spin"></span>
+          <span>正在汇总反驳链、生成裁决…</span>
+        </div>
+
+        <!-- 裁决报告卡（隐藏） -->
+        <div class="verdict-card hidden fade-in" id="verdict-card"></div>
+
+        <!-- 降级卡（隐藏） -->
+        <div class="degraded-card hidden fade-in" id="degraded-card"></div>
+
+        <footer>
+          <span>静态站点 · 零外链统计 · 零硬编码密钥</span>
+          <span>引擎：<code>确定性规则（查表）</code> · 版本 v0.6（指纹见 <code>version.txt</code>）</span>
+        </footer>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
