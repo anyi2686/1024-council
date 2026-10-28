@@ -439,12 +439,37 @@ function readInput() {
   };
 }
 
+// ─────────────────────────────────────────────
+// 音效（科技 UI 反馈：hover 轻音 / 开始审议启动音）
+// ─────────────────────────────────────────────
+
+const sfxHover = new Audio('./hover.wav');
+const sfxStart = new Audio('./start.wav');
+sfxHover.volume = 0.22; // hover 频繁触发，压低避免吵
+sfxStart.volume = 0.4;
+sfxHover.preload = 'auto';
+sfxStart.preload = 'auto';
+
+function playSfx(a) {
+  try {
+    a.currentTime = 0; // 快速连续触发时从头播，避免叠音
+    const p = a.play();
+    if (p && p.catch) p.catch(() => { /* 自动播放策略拦截则静默 */ });
+  } catch (e) { /* 音频不可用时不影响主流程 */ }
+}
+
+// 所有按钮 hover 轻音
+document.querySelectorAll('button').forEach((b) => {
+  b.addEventListener('mouseenter', () => playSfx(sfxHover));
+});
+
 $('btn-run').addEventListener('click', () => {
   const p = readInput();
   if (!p.body && !p.title) {
     setStage('请先输入提案');
     return;
   }
+  playSfx(sfxStart);
   start(p);
 });
 
