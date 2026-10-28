@@ -21,6 +21,7 @@
       hi: sc.n,
       sel: null,
       results: {},
+      flakyCells: {},
       steps: 0,
       log: [],
       done: false
@@ -60,6 +61,7 @@
     var cls = "seg";
     if (r === "good") cls += " good";
     else if (r === "bad") cls += " bad";
+    else if (state.flakyCells[i]) cls += " flaky";
     else if (i < state.lo || i > state.hi) cls += " out";
     if (i === state.sel) cls += " sel";
     return cls;
@@ -69,7 +71,7 @@
     var host = $("bar");
     var html = "";
     for (var i = 1; i <= state.n; i++) {
-      html += "<div class=\"" + segClass(i).replace("seg", "seg seg") + "\" data-i=\"" + i + "\"></div>";
+      html += "<div class=\"" + segClass(i) + "\" data-i=\"" + i + "\"></div>";
     }
     host.innerHTML = html;
     var segs = host.querySelectorAll(".seg");
@@ -87,6 +89,7 @@
       var r = state.results[i];
       if (r === "good") cls += " good";
       else if (r === "bad") cls += " bad";
+      else if (state.flakyCells[i]) cls += " flaky";
       else if (i < state.lo || i > state.hi) cls += " out";
       if (i === state.sel) cls += " sel";
       html += "<div class=\"" + cls + "\" data-i=\"" + i + "\" title=\"" + esc(state.commits[i - 1].msg) + "\">" + i + "</div>";
@@ -135,6 +138,11 @@
   function onPick(ev) {
     if (state.done) return;
     var i = Number(ev.currentTarget.getAttribute("data-i"));
+    if (state.results[i] || state.flakyCells[i]) {
+      state.log.push("commit " + i + " 已经判过了，重复测不会让区间变小");
+      renderLog();
+      return;
+    }
     state.sel = i;
     renderAll();
   }
@@ -150,8 +158,8 @@
     }
     if (state.flaky && i === state.flakyAt) {
       state.flakyHits += 1;
-      state.steps += 1;
-      state.log.push("第 " + state.steps + " 次: commit " + i + " => 结果不稳定（不可判定），本次不计入区间 —— 正确做法是 skip");
+      state.flakyCells[i] = true;
+      state.log.push("commit " + i + " => 结果不稳定（flaky）。不计步、不计入区间 → 换个点再测，这就是 skip");
       state.sel = null;
       renderAll();
       return;
@@ -166,7 +174,7 @@
     if (verdict === "bad") state.hi = Math.min(state.hi, i);
     else state.lo = Math.max(state.lo, i + 1);
     state.sel = null;
-    if (state.lo >= state.hi) { state.done = true; state.sel = state.lo; reveal(); }
+    if (state.lo >= state.hi) { state.done = true; state.sel = state.lo; state.results[state.lo] = "bad"; reveal(); }
     renderAll();
   }
 
@@ -245,22 +253,32 @@
 
   function nextMid() {
     if (state.done) return null;
-    return Math.floor((state.lo + state.hi) / 2);
+    var mid = Math.floor((state.lo + state.hi) / 2);
+    if (!state.flakyCells[mid] && !state.results[mid]) return mid;
+    // 标准二分点刚好是 flaky 或已判过 → 在区间内另找一个未判过的点
+    for (var d = 1; d <= state.n; d++) {
+      var up = mid + d, dn = mid - d;
+      if (up <= state.hi && !state.flakyCells[up] && !state.results[up]) return up;
+      if (dn >= state.lo && !state.flakyCells[dn] && !state.results[dn]) return dn;
+    }
+    return null;
   }
 
   function startAutoplay() {
     if (state.done) return;
     var mid = nextMid();
-    if (mid === null) return;
+    if (mid === null) { document.title = "STUCK"; return; }
+    var before = state.steps;
     state.sel = mid;
     renderAll();
     setTimeout(function () {
       runTest();
       if (state.done) {
         document.title = "DONE " + state.steps + "/" + optimalSteps(state.n);
-      } else {
-        startAutoplay();
+        return;
       }
+      if (state.steps === before) { state.flakyCells[mid] = true; }
+      startAutoplay();
     }, 620);
   }
 
@@ -271,9 +289,9 @@
       .then(function (r) { return r.ok ? r.text() : ""; })
       .then(function (t) {
         var v = (t || "").trim().split("\n")[0];
-        el.textContent = v ? ("v0.2 · " + v) : "v0.2 · version.txt 未找到";
+        el.textContent = v ? v : "version.txt 未找到";
       })
-      .catch(function () { el.textContent = "v0.2 · 版本读取失败"; });
+      .catch(function () { el.textContent = "版本读取失败"; });
   }
 
   bind();

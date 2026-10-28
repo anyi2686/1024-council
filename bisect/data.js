@@ -4,8 +4,8 @@ var SCENARIOS = {
            desc: "6 次是下界：64 = 2^6。乱点也能找到，但会多花步数。" },
   "128": { n: 128, culprit: 97, flaky: false, label: "128 · 压力",
            desc: "128 = 2^7：下界 7 次。格子变密，手快不如手稳。" },
-  "flaky": { n: 64, culprit: 23, flaky: true, flakyAt: 33, label: "flaky · 需 skip",
-           desc: "第 33 个 commit 偶发不稳定：跑它会得到不可判定的结果。正确做法是 skip，不计入区间。" }
+  "flaky": { n: 64, culprit: 23, flaky: true, flakyAt: 20, label: "flaky · 需 skip",
+           desc: "第 20 个 commit 偶发不稳定（就在标准二分的路径上）：测它会得到不可判定的结果。正确做法是 skip、不计入区间，换个点继续。" }
 };
 
 var MSGS = [
