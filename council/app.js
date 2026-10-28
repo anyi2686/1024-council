@@ -28,14 +28,30 @@ const DECISION_LABEL = { adopt: '采纳', reject: '驳回', conditional: '有条
  * 预置提案（评委视角：没想好输入什么，点一个直接看完整审议）。
  * 四类意图各一个（功能/商业/技术/内容），全部经引擎实跑验证：
  * 有 risk 反对位、有软化点（I1 的"立场被驳并改写"）、冲突≥1。
- * 2026-10-28 step-5 增补（anyi2 拍板）； Doubao 的 UI 渲染逻辑未动。
+ * title = 正文精简版（不重复正文原文）。2026-10-28 step-5 增补（anyi2 拍板）。
+ * 交互（v0.8 按 anyi2 反馈修正）：只填入、不自动跑——跑不跑的决定权留给评委。
  */
 const PRESETS = [
-  { tag: '🧩 功能', label: '一键下单 · 免密支付', body: '新增一键下单功能，默认免密支付，减少下单步骤' },
-  { tag: '💰 商业', label: '订阅涨价 50%', body: '核心订阅套餐价格上调 50%，老用户同步执行' },
-  { tag: '🔧 技术', label: '单体拆微服务', body: '把现在的单体应用拆成微服务，各团队独立部署' },
-  { tag: '📣 内容', label: '取消人工审核', body: '用户内容取消人工审核，通过后直接上架' },
+  { tag: '🧩 功能', label: '一键下单 · 免密支付', title: '新增一键下单，默认免密支付', body: '新增一键下单功能，默认免密支付，减少下单步骤' },
+  { tag: '💰 商业', label: '订阅涨价 50%', title: '核心订阅涨价 50%', body: '核心订阅套餐价格上调 50%，老用户同步执行' },
+  { tag: '🔧 技术', label: '单体拆微服务', title: '单体应用拆微服务', body: '把现在的单体应用拆成微服务，各团队独立部署' },
+  { tag: '📣 内容', label: '取消人工审核', title: '用户内容取消人工审核', body: '用户内容取消人工审核，通过后直接上架' },
 ];
+
+/**
+ * 「试一个」轮播剧本（v0.8 按 anyi2 反馈增补）：连点连看不重样，共 7 个。
+ * 第 1 个是原 7 天 Pro 引导提案，其余与预置同源（引擎实跑验证有对抗有软化）。
+ */
+const DEMO_SCRIPTS = [
+  { title: '给核心功能加 7 天 Pro 免费试用', body: DEMO_PROPOSAL.body },
+  { title: '新增一键下单，默认免密支付', body: '新增一键下单功能，默认免密支付，减少下单步骤' },
+  { title: '核心订阅涨价 50%', body: '核心订阅套餐价格上调 50%，老用户同步执行' },
+  { title: '单体应用拆微服务', body: '把现在的单体应用拆成微服务，各团队独立部署' },
+  { title: '用户内容取消人工审核', body: '用户内容取消人工审核，通过后直接上架' },
+  { title: '上线会员积分体系', body: '上线会员积分体系，消费自动累积积分可抵扣现金' },
+  { title: '数据库迁移新机房', body: '把数据库迁移到新机房，预计停机两小时' },
+];
+let demoIdx = 0;
 
 /** 当前运行句柄（{ runId, cancel }）；并发时以它为 UI 锚点。 */
 let current = null;
@@ -370,9 +386,13 @@ $('btn-run').addEventListener('click', () => {
 });
 
 $('btn-demo').addEventListener('click', () => {
-  $('in-title').value = DEMO_PROPOSAL.title;
-  $('in-body').value = DEMO_PROPOSAL.body;
-  start(DEMO_PROPOSAL);
+  const i = demoIdx;
+  demoIdx = (demoIdx + 1) % DEMO_SCRIPTS.length;
+  const s = DEMO_SCRIPTS[i];
+  $('in-title').value = s.title;
+  $('in-body').value = s.body;
+  $('btn-demo').textContent = `试一个 ${i + 1}/${DEMO_SCRIPTS.length}`;
+  start({ title: s.title, body: s.body });
 });
 
 // ─────────────────────────────────────────────
@@ -391,15 +411,21 @@ if (new URLSearchParams(location.search).get('autoplay') === '1') {
 
 // ─────────────────────────────────────────────
 // 预置提案（评委视角：一键看完整审议）
+// v0.8 修正（anyi2 反馈）：只填入不自动跑——评委要先读提案再决定跑不跑，
+// 自动触发是剥夺控制权；填入后给「开始审议」一个脉冲提示下一步。
 // ─────────────────────────────────────────────
 
 document.querySelectorAll('.preset').forEach((btn) => {
   btn.addEventListener('click', () => {
     const p = PRESETS[Number(btn.dataset.i)];
     if (!p) return;
-    $('in-title').value = '';
+    $('in-title').value = p.title;
     $('in-body').value = p.body;
-    start({ title: '', body: p.body });
+    const runBtn = $('btn-run');
+    runBtn.classList.remove('pulse');
+    void runBtn.offsetWidth; // 强制重排，让动画可重复触发
+    runBtn.classList.add('pulse');
+    setStage('已填入提案 · 点「开始审议」开跑');
   });
 });
 

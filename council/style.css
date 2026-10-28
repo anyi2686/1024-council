@@ -455,3 +455,12 @@ code { background: #161b22; padding: 1px 5px; border-radius: 3px; font-size: 12p
   .zoom-panel { max-height: 70vh; }
   .preset { font-size: 12px; padding: 6px 10px; }
 }
+
+/* ── v0.8（2026-10-28 anyi2 反馈修正）── */
+
+/* 预置填入后「开始审议」一次性脉冲：提示下一步，但不自动跑（决定权留给评委） */
+@keyframes pulse-once {
+  0% { box-shadow: 0 0 0 0 rgba(88, 166, 255, 0.5); }
+  100% { box-shadow: 0 0 0 14px rgba(88, 166, 255, 0); }
+}
+#btn-run.pulse { animation: pulse-once 0.9s ease-out 2; }
