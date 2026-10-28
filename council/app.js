@@ -59,6 +59,8 @@ let conflictsTotal = 0;
 let opinionsSeen = 0;
 /** 同一路径（含方向）已画弧线数，用于让多条反驳弧线错开不重叠。 */
 let arcCounts = {};
+/** stanceId → position（support/oppose/conditional），用于箭头按目标立场分色。 */
+let positionsMap = {};
 
 // ─────────────────────────────────────────────
 // 小工具
@@ -100,17 +102,22 @@ function setConv(resolved, total) {
 /** 下滑工具组 v2（anyi2 2026-10-28）：两个目标各自可调——
    ① 审议区：环形图面板垂直居中（start() 自动下滑）
    ② 结论区：裁决卡顶对齐 +24px（结论出现后右侧箭头一键下滑）
-   footer ⚙ 进调整模式 → 选目标段 → 手动滚到理想位（rAF 实时刷新偏移）→ 保存持久化 → 隐藏。
-   ⚠️ v2 键名升级：v1（council-scroll-delta-v1）因 stage-panel 缺 id 存的是绝对位置，语义作废。 */
+   默认偏移 = anyi2 实测调定值（2026-10-28 22:38）：审议 +124 / 结论 -299。
+   localStorage 有保存值则覆盖默认（调过的人保留自己的）；「恢复默认」回内置值。
+   调整 UI 平常对评委隐身，?scrolladjust=1 唤出（再调不用改代码）。 */
 const SCROLL_KEY_STAGE = 'council-scroll-delta-v2';
 const SCROLL_KEY_VERDICT = 'council-scroll-verdict-v2';
-let scrollDelta = { stage: 0, verdict: 0 };
+const SCROLL_DEFAULT = { stage: 124, verdict: -299 }; // anyi2 实测调定，烙为默认
+let scrollDelta = { ...SCROLL_DEFAULT };
 let scrollAdjust = false;
 let scrollAdjustSeg = 'stage'; // 当前调整段：stage=审议区 / verdict=结论区
 try {
-  scrollDelta.stage = Number(localStorage.getItem(SCROLL_KEY_STAGE) || 0) || 0;
-  scrollDelta.verdict = Number(localStorage.getItem(SCROLL_KEY_VERDICT) || 0) || 0;
-} catch (e) { scrollDelta = { stage: 0, verdict: 0 }; }
+  // 注意：必须先用原始串判空——Number(null)===0 会把「无保存」误判成「保存了 0」而覆盖默认值
+  const rs = localStorage.getItem(SCROLL_KEY_STAGE);
+  const rv = localStorage.getItem(SCROLL_KEY_VERDICT);
+  if (rs !== null && Number.isFinite(Number(rs))) scrollDelta.stage = Number(rs);
+  if (rv !== null && Number.isFinite(Number(rv))) scrollDelta.verdict = Number(rv);
+} catch (e) { scrollDelta = { ...SCROLL_DEFAULT }; }
 
 function scrollBaseTarget(which) {
   const el = which === 'verdict' ? $('verdict-card') : $('stage-panel');
@@ -178,10 +185,10 @@ function scrollAdjustSave() {
   setStage(`${scrollSegName()}位置已保存（偏移 ${scrollFmt(scrollDelta[scrollAdjustSeg])}）`);
 }
 function scrollAdjustReset() {
-  scrollDelta[scrollAdjustSeg] = 0;
+  scrollDelta[scrollAdjustSeg] = SCROLL_DEFAULT[scrollAdjustSeg]; // 恢复内置默认（anyi2 调定值）而非 0
   try { localStorage.removeItem(scrollSegKey()); } catch (e) { /* ignore */ }
   scrollAdjustExit();
-  setStage(`${scrollSegName()}位置已恢复默认`);
+  setStage(`${scrollSegName()}位置已恢复默认（${scrollFmt(SCROLL_DEFAULT[scrollAdjustSeg])}）`);
 }
 function scrollAdjustExit() {
   scrollAdjust = false;
@@ -429,16 +436,19 @@ function handleEvent(e) {
       opinionsSeen += 1;
       activateNode(e.stanceId, e.opinion);
       fillOpinionCard(e.stanceId, e.opinion);
+      playSfx(sfxWake); // 节点唤醒音，和点亮同步，共 4 声
       setStage(`视角发言 ${opinionsSeen}/4`);
       break;
     case EVENTS.CONFLICT_DETECTED:
       conflictsTotal += 1;
       drawConflictPrep(e.conflict);
+      playSfx(sfxArrow); // 箭头出现同步
       setConv(0, conflictsTotal);
       setStage('冲突检测');
       break;
     case EVENTS.REBUTTAL:
       drawRebuttal(e.rebuttal);
+      playSfx(sfxArrow); // 反驳箭头出现同步
       setStage(`反驳链 · 第 ${e.rebuttal.round} 轮`);
       break;
     case EVENTS.VERDICT_READY:
@@ -479,15 +489,21 @@ function readInput() {
 }
 
 // ─────────────────────────────────────────────
-// 音效（科技 UI 反馈：hover 轻音 / 开始审议启动音）
+// 音效（5 路：节点唤醒 / 箭头 / 点击 / 悬浮弹出 / 背景）
 // ─────────────────────────────────────────────
 
-const sfxHover = new Audio('./hover.wav');
-const sfxStart = new Audio('./start.wav');
-sfxHover.volume = 0.22; // hover 频繁触发，压低避免吵
-sfxStart.volume = 0.4;
-sfxHover.preload = 'auto';
-sfxStart.preload = 'auto';
+const sfxWake = new Audio('./wake.wav');   // 节点点亮，4 声同步
+const sfxArrow = new Audio('./arrow.wav');  // 箭头出现同步
+const sfxClick = new Audio('./click.wav');  // 开始审议按钮
+const sfxHover = new Audio('./hover.wav');  // 悬浮窗弹出
+const sfxBg = new Audio('./bg.wav');       // 背景音（极轻循环）
+sfxWake.volume = 0.4;
+sfxArrow.volume = 0.35;
+sfxClick.volume = 0.25;
+sfxHover.volume = 0.4;
+sfxBg.volume = 0.4;
+sfxBg.loop = true;
+[sfxWake, sfxArrow, sfxClick, sfxHover, sfxBg].forEach((a) => { a.preload = 'auto'; });
 
 function playSfx(a) {
   try {
@@ -497,10 +513,8 @@ function playSfx(a) {
   } catch (e) { /* 音频不可用时不影响主流程 */ }
 }
 
-// 所有按钮 hover 轻音
-document.querySelectorAll('button').forEach((b) => {
-  b.addEventListener('mouseenter', () => playSfx(sfxHover));
-});
+// 背景音：首次用户交互后启动（浏览器自动播放策略，autoplay 不强制）
+document.addEventListener('pointerdown', () => playSfx(sfxBg), { once: true });
 
 $('btn-run').addEventListener('click', () => {
   const p = readInput();
@@ -508,7 +522,7 @@ $('btn-run').addEventListener('click', () => {
     setStage('请先输入提案');
     return;
   }
-  playSfx(sfxStart);
+  playSfx(sfxClick);
   start(p);
 });
 
@@ -563,6 +577,10 @@ $('scrollReset').addEventListener('click', scrollAdjustReset);
 $('scrollCancel').addEventListener('click', scrollAdjustExit);
 scrollAdjustLabel(); // 有历史自定义则启动即显示状态
 
+// 调整 UI 平常对评委隐身（anyi2 2026-10-28：调定后隐藏开关）；?scrolladjust=1 唤出再调
+const SCROLL_ADMIN = new URLSearchParams(location.search).get('scrolladjust') === '1';
+if (!SCROLL_ADMIN) $('scrollAdjustBtn').classList.add('hidden');
+
 // 调整模式的目标段切换（审议区 / 结论区）
 document.querySelectorAll('.seg-btn').forEach((b) => {
   b.addEventListener('click', () => {
@@ -616,12 +634,14 @@ function zoomPlace(block) {
 }
 
 function zoomOpen(block) {
+  const wasHidden = zoomEl.classList.contains('hidden');
   const title = block.getAttribute('data-zoom-title') || '详情';
   zoomCurKey = zoomKeyOf(block);
   zoomInner.innerHTML = `<h3 class="zoom-title">${title}</h3><div class="zoom-body">${block.innerHTML}</div>`;
   zoomEl.classList.remove('hidden');
   zoomEl.classList.remove('handle-hidden'); // 每次打开重新显示手柄（调整完再淡出）
   zoomPlace(block);
+  if (wasHidden) playSfx(sfxHover); // 仅窗口弹出瞬间播音，悬停移动不重复
 }
 
 function zoomScheduleClose() {
