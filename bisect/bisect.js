@@ -162,7 +162,8 @@
       state.flakyHits += 1;
       state.flakyCells[i] = true;
       state.flakyLog.push(i);
-      state.log.push("commit " + i + " => 结果不稳定（flaky）。不计步、不计入区间 → 换个点再测，这就是 skip");
+      state.steps += 1;
+      state.log.push("第 " + state.steps + " 次: commit " + i + " => 结果不稳定（flaky）→ 这次算浪费一步，不计入区间。正确做法是 skip 后换个点");
       state.sel = null;
       renderAll();
       return;
