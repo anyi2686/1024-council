@@ -22,6 +22,8 @@
       sel: null,
       results: {},
       flakyCells: {},
+      history: [],
+      flakyLog: [],
       steps: 0,
       log: [],
       done: false
@@ -159,6 +161,7 @@
     if (state.flaky && i === state.flakyAt) {
       state.flakyHits += 1;
       state.flakyCells[i] = true;
+      state.flakyLog.push(i);
       state.log.push("commit " + i + " => 结果不稳定（flaky）。不计步、不计入区间 → 换个点再测，这就是 skip");
       state.sel = null;
       renderAll();
@@ -173,6 +176,7 @@
     state.results[i] = verdict;
     if (verdict === "bad") state.hi = Math.min(state.hi, i);
     else state.lo = Math.max(state.lo, i + 1);
+    state.history.push({ i: i, verdict: verdict, lo: state.lo, hi: state.hi });
     state.sel = null;
     if (state.lo >= state.hi) { state.done = true; state.sel = state.lo; state.results[state.lo] = "bad"; reveal(); }
     renderAll();
@@ -197,8 +201,55 @@
         } else { btn.textContent = "此浏览器不支持自动复制"; }
       };
     }
-    $("path").textContent = buildPath(opt);
+    $("path").innerHTML = buildCompare();
     $("reveal").classList.remove("hidden");
+  }
+
+  function optimalTrace() {
+    var lo = 1, hi = state.n, out = [], step = 0;
+    while (lo < hi) {
+      step += 1;
+      var mid = Math.floor((lo + hi) / 2);
+      var bad = mid >= state.culprit;
+      if (bad) hi = mid; else lo = mid + 1;
+      out.push({ i: mid, verdict: bad ? "bad" : "good", lo: lo, hi: hi });
+    }
+    return out;
+  }
+
+  function vLabel(v) {
+    if (v === "bad") return "BAD";
+    if (v === "good") return "GOOD";
+    return "flaky·skip";
+  }
+
+  function buildCompare() {
+    var mine = state.history || [];
+    var best = optimalTrace();
+    var rows = Math.max(mine.length, best.length);
+    var html = "<table class=\"cmp\"><thead><tr><th>#</th><th>你的路径</th><th>最优路径</th></tr></thead><tbody>";
+    var lagAt = -1;
+    for (var r = 0; r < rows; r++) {
+      var m = mine[r], b = best[r];
+      var mRem = m ? (m.hi - m.lo + 1) : null;
+      var bRem = b ? (b.hi - b.lo + 1) : null;
+      var cls = "";
+      if (mRem !== null && bRem !== null && mRem > bRem && lagAt < 0) { lagAt = r + 1; cls = " class=\"lag\""; }
+      html += "<tr" + cls + "><td>" + (r + 1) + "</td>";
+      html += "<td>" + (m ? ("test " + m.i + " → " + vLabel(m.verdict) + " · 剩 " + mRem) : "—") + "</td>";
+      html += "<td>" + (b ? ("test " + b.i + " → " + vLabel(b.verdict) + " · 剩 " + bRem) : "—") + "</td>";
+      html += "</tr>";
+    }
+    html += "</tbody></table>";
+    if (lagAt > 0) {
+      html += "<p class=\"cmpline\">你在<b>第 " + lagAt + " 步</b>开始落后（剩余候选比最优多）。二分是紧的，落后之后追不回来。</p>";
+    } else {
+      html += "<p class=\"cmpline ok\">全程踩着最优下界，没有一步浪费。</p>";
+    }
+    if (state.flakyLog && state.flakyLog.length) {
+      html += "<p class=\"cmpline\">flaky 点：" + state.flakyLog.join("、") + "（已 skip，不计步）</p>";
+    }
+    return html;
   }
 
   function buildPath(opt) {
@@ -240,7 +291,13 @@
   window.BISECT = {
     state: function () { return state; },
     reset: function (key) { init(key || "64"); },
-    pick: function (i) { if (state.done) return; state.sel = Number(i); renderAll(); },
+    pick: function (i) {
+      var n = Number(i);
+      if (state.done) return false;
+      if (!isFinite(n) || n < 1 || n > state.n) return false;   // step-5: 越界 guard
+      if (state.results[n] || state.flakyCells[n]) return false; // 已判过
+      state.sel = n; renderAll(); return true;
+    },
     test: function () { runTest(); },
     push: function (ev) {
       if (!ev || !ev.type) return false;
