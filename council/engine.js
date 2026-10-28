@@ -1,7 +1,7 @@
 /**
  * 九人议会 · 规则引擎 v1.0（2026-10-26 step-5 实现，兑现 MVS 第一天交付）
  *
- * 规格宪法：C:\Users\anyi2\.workbuddy\agent-log\1024_PARLIAMENT_SPEC.md v1.0
+ * 规格宪法：1024_PARLIAMENT_SPEC.md v1.0（账本 `agent-log/` 内）
  * 验收标准：ACCEPTANCE_1024.md E1–E6（自验见 engine.test.mjs，node 直接跑）
  *
  * 契约（与 mock-engine.js 逐字一致，UI 切换只需改 import 一行）：

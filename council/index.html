@@ -39,6 +39,16 @@
             <button class="primary" id="btn-run">开始审议</button>
             <button class="ghost" id="btn-demo">试一个</button>
           </div>
+          <!-- 预置提案（评委视角：没想好输入什么，点一个直接看完整审议；四类意图各一，均经引擎实跑验证有对抗有软化） -->
+          <div class="presets" id="presets">
+            <span class="presets-label">没想好？点一个，看它怎么审 ↓</span>
+            <div class="presets-row">
+              <button type="button" class="preset" data-i="0"><b>🧩 功能</b>一键下单 · 免密支付</button>
+              <button type="button" class="preset" data-i="1"><b>💰 商业</b>订阅涨价 50%</button>
+              <button type="button" class="preset" data-i="2"><b>🔧 技术</b>单体拆微服务</button>
+              <button type="button" class="preset" data-i="3"><b>📣 内容</b>取消人工审核</button>
+            </div>
+          </div>
         </div>
 
         <!-- 主舞台：环形对抗图 -->
@@ -113,12 +123,22 @@
 
         <footer>
           <span>静态站点 · 零外链统计 · 零硬编码密钥</span>
-          <span>引擎：<code>确定性规则（查表）</code> · 版本 v0.6（指纹见 <code>version.txt</code>）</span>
+          <span>引擎：<code>确定性规则（查表）</code> · 版本 v0.7（指纹见 <code>version.txt</code>）</span>
+          <a href="../index.html" style="color:var(--accent);text-decoration:none">← 返回目录</a>
+          <a href="../bisect/index.html" style="color:var(--dim);text-decoration:none">BISECT 副玩法 →</a>
         </footer>
       </div>
     </div>
   </div>
 
   <script type="module" src="./app.js"></script>
+
+  <!-- 结论区悬浮放大镜（hover 预览 / click 钉住 / Esc 关；样式与逻辑见 style.css 与 app.js） -->
+  <div id="zoom" class="zoom hidden" role="dialog" aria-label="结论放大视图">
+    <div class="zoom-panel">
+      <div class="zoom-inner" id="zoomInner"></div>
+      <button type="button" class="zoom-close" id="zoomClose" aria-label="关闭放大视图">✕</button>
+    </div>
+  </div>
 </body>
 </html>

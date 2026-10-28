@@ -367,3 +367,91 @@ code { background: #161b22; padding: 1px 5px; border-radius: 3px; font-size: 12p
   .verdict-card, .degraded-card { padding: 14px 12px; }
   .hud { padding: 8px 10px; font-size: 12px; }
 }
+
+/* ── v0.7 预置提案 + 结论悬浮放大镜（2026-10-28 step-5，anyi2 评委视角拍板）── */
+
+/* 预置提案行：输入框下一键起跑，四类意图各一 */
+.presets { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--line); }
+.presets-label { display: block; font-size: 12px; color: var(--dim); margin-bottom: 8px; }
+.presets-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.preset {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--fg);
+  background: #161b22;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 7px 12px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.preset b { color: var(--accent); font-weight: 600; margin-right: 6px; }
+.preset:hover { border-color: var(--accent); background: #1c2330; }
+
+/* 结论区可放大标记：hover 出虚线框 + 右上角放大镜图标 */
+.zoomable { cursor: zoom-in; position: relative; }
+.zoomable::after {
+  content: "🔍";
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  font-size: 11px;
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: none;
+}
+.zoomable:hover::after { opacity: 0.75; }
+.verdict-card .head.zoomable:hover,
+.verdict-block.zoomable:hover {
+  outline: 1px dashed var(--accent);
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+
+/* 结论区基线可读性微升（放大镜之外的保底） */
+.verdict-block li { font-size: 13px; line-height: 1.65; }
+
+/* 悬浮放大镜：贴页面终端风（深底/细框/等宽），大字号+罩内滚动 */
+.zoom {
+  position: fixed;
+  z-index: 60;
+  max-width: min(760px, calc(100vw - 24px));
+}
+.zoom-panel {
+  position: relative;
+  background: #0d1117;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
+  max-height: 72vh;
+  overflow: auto;
+  padding: 18px 22px;
+}
+.zoom-title { margin: 0 0 12px; font-size: 14px; color: var(--accent); font-weight: 600; }
+.zoom-body { font-size: 14.5px; line-height: 1.75; color: var(--fg); }
+.zoom-body ul { margin: 0; padding-left: 18px; }
+.zoom-body li { font-size: 14.5px; color: var(--fg); margin: 7px 0; }
+.zoom-body .decision-badge { font-size: 15px; padding: 4px 14px; }
+.zoom-body .rate { font-size: 14px; }
+.zoom-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 26px;
+  height: 26px;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  color: var(--dim);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+}
+.zoom-close:hover { color: var(--fg-bright); border-color: var(--accent); }
+
+/* 390 宽手机：放大镜近全屏（!important 压 JS 内联定位） */
+@media (max-width: 480px) {
+  .zoom { left: 10px !important; right: 10px; top: 12vh !important; max-width: none; width: auto; }
+  .zoom-panel { max-height: 70vh; }
+  .preset { font-size: 12px; padding: 6px 10px; }
+}

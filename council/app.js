@@ -24,6 +24,19 @@ const NODE_R = 40;
 const POS_LABEL = { support: '支持', oppose: '反对', conditional: '有条件' };
 const DECISION_LABEL = { adopt: '采纳', reject: '驳回', conditional: '有条件采纳' };
 
+/**
+ * 预置提案（评委视角：没想好输入什么，点一个直接看完整审议）。
+ * 四类意图各一个（功能/商业/技术/内容），全部经引擎实跑验证：
+ * 有 risk 反对位、有软化点（I1 的"立场被驳并改写"）、冲突≥1。
+ * 2026-10-28 step-5 增补（anyi2 拍板）； Doubao 的 UI 渲染逻辑未动。
+ */
+const PRESETS = [
+  { tag: '🧩 功能', label: '一键下单 · 免密支付', body: '新增一键下单功能，默认免密支付，减少下单步骤' },
+  { tag: '💰 商业', label: '订阅涨价 50%', body: '核心订阅套餐价格上调 50%，老用户同步执行' },
+  { tag: '🔧 技术', label: '单体拆微服务', body: '把现在的单体应用拆成微服务，各团队独立部署' },
+  { tag: '📣 内容', label: '取消人工审核', body: '用户内容取消人工审核，通过后直接上架' },
+];
+
 /** 当前运行句柄（{ runId, cancel }）；并发时以它为 UI 锚点。 */
 let current = null;
 let conflictsTotal = 0;
@@ -77,6 +90,7 @@ const OPINION_INITIAL = (name, id) => `
   <p class="placeholder-line" id="ph-${id}">等待发表意见…</p>`;
 
 function resetUI() {
+  zoomClose(); // 新 run 清场：关掉可能钉住的放大镜
   conflictsTotal = 0;
   opinionsSeen = 0;
   arcCounts = {};
@@ -239,14 +253,14 @@ function showVerdict(verdict) {
   const card = $('verdict-card');
   const rate = Math.round((verdict.conflictsResolved / (verdict.conflictsTotal || 1)) * 100);
   card.innerHTML = `
-    <div class="head">
+    <div class="head zoomable" data-zoom-title="最终裁决">
       <span class="vname">最终裁决</span>
       <span class="decision-badge ${verdict.decision}">${DECISION_LABEL[verdict.decision]}</span>
       <span class="rate">收敛率 <b>${verdict.conflictsResolved}/${verdict.conflictsTotal}</b>（${rate}%）</span>
     </div>
-    <div class="verdict-block"><h3>裁决理由</h3><ul>${li(verdict.reasons)}</ul></div>
-    <div class="verdict-block"><h3>残余风险（未完全收敛）</h3><ul>${li(verdict.residualRisks)}</ul></div>
-    <div class="verdict-block"><h3>推翻条件（满足则重新审议）</h3><ul>${li(verdict.overturnConditions)}</ul></div>`;
+    <div class="verdict-block zoomable" data-zoom-title="裁决理由"><h3>裁决理由</h3><ul>${li(verdict.reasons)}</ul></div>
+    <div class="verdict-block zoomable" data-zoom-title="残余风险（未完全收敛）"><h3>残余风险（未完全收敛）</h3><ul>${li(verdict.residualRisks)}</ul></div>
+    <div class="verdict-block zoomable" data-zoom-title="推翻条件（满足则重新审议）"><h3>推翻条件（满足则重新审议）</h3><ul>${li(verdict.overturnConditions)}</ul></div>`;
   card.classList.remove('hidden');
   setStage('审议完成');
   setConv(verdict.conflictsResolved, verdict.conflictsTotal);
@@ -374,3 +388,89 @@ if (new URLSearchParams(location.search).get('autoplay') === '1') {
   $('in-body').value = DEMO_PROPOSAL.body;
   start(DEMO_PROPOSAL);
 }
+
+// ─────────────────────────────────────────────
+// 预置提案（评委视角：一键看完整审议）
+// ─────────────────────────────────────────────
+
+document.querySelectorAll('.preset').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    const p = PRESETS[Number(btn.dataset.i)];
+    if (!p) return;
+    $('in-title').value = '';
+    $('in-body').value = p.body;
+    start({ title: '', body: p.body });
+  });
+});
+
+// ─────────────────────────────────────────────
+// 结论区悬浮放大镜（hover 预览 / click 钉住 / Esc 或罩外点击关闭）
+// 触发区：裁决卡四区（最终裁决 / 裁决理由 / 残余风险 / 推翻条件），class=zoomable
+// ─────────────────────────────────────────────
+
+const zoomEl = $('zoom');
+const zoomInner = $('zoomInner');
+let zoomPinned = false;
+let zoomTimer = null;
+
+/** 定位：贴触发块右侧，空间不够翻左侧，再不够居中；垂直方向钳在视口内。 */
+function zoomPlace(block) {
+  const r = block.getBoundingClientRect();
+  const zw = zoomEl.offsetWidth;
+  const zh = zoomEl.offsetHeight;
+  let left = r.right + 14;
+  if (left + zw > window.innerWidth - 12) left = r.left - zw - 14;
+  if (left < 12) left = Math.max(12, (window.innerWidth - zw) / 2);
+  let top = r.top + r.height / 2 - zh / 2;
+  top = Math.min(Math.max(12, top), Math.max(12, window.innerHeight - zh - 12));
+  zoomEl.style.left = `${Math.round(left)}px`;
+  zoomEl.style.top = `${Math.round(top)}px`;
+}
+
+function zoomOpen(block) {
+  const title = block.getAttribute('data-zoom-title') || '详情';
+  zoomInner.innerHTML = `<h3 class="zoom-title">${title}</h3><div class="zoom-body">${block.innerHTML}</div>`;
+  zoomEl.classList.remove('hidden');
+  zoomPlace(block);
+}
+
+function zoomScheduleClose() {
+  clearTimeout(zoomTimer);
+  zoomTimer = setTimeout(() => {
+    if (!zoomPinned && !zoomEl.matches(':hover')) zoomEl.classList.add('hidden');
+  }, 260);
+}
+
+function zoomClose() {
+  zoomPinned = false;
+  zoomEl.classList.add('hidden');
+}
+
+/** 取最近的 .zoomable 触发块（e.target 可能是 SVG 子元素，closest 通吃）。 */
+function zoomTarget(e) {
+  const t = e && e.target;
+  return t && typeof t.closest === 'function' ? t.closest('.zoomable') : null;
+}
+
+document.addEventListener('mouseover', (e) => {
+  const b = zoomTarget(e);
+  if (!b || zoomPinned) return;
+  clearTimeout(zoomTimer);
+  zoomOpen(b);
+});
+document.addEventListener('mouseout', (e) => {
+  if (!zoomTarget(e) || zoomPinned) return;
+  zoomScheduleClose();
+});
+zoomEl.addEventListener('mouseenter', () => clearTimeout(zoomTimer));
+zoomEl.addEventListener('mouseleave', () => { if (!zoomPinned) zoomScheduleClose(); });
+$('zoomClose').addEventListener('click', zoomClose);
+document.addEventListener('click', (e) => {
+  const t = e.target;
+  const inZoom = t && typeof t.closest === 'function' && t.closest('#zoom');
+  if (inZoom && !(t.closest('#zoomClose'))) return; // 罩内点击不关（方便选中文字）
+  const b = zoomTarget(e);
+  if (b) { zoomPinned = true; zoomOpen(b); return; } // 点击触发块 = 钉住
+  if (zoomPinned) zoomClose(); // 罩外点击且处于钉住态 = 关闭
+});
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') zoomClose(); });
