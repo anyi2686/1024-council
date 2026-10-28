@@ -123,7 +123,8 @@
 
         <footer>
           <span>静态站点 · 零外链统计 · 零硬编码密钥</span>
-          <span>引擎：<code>确定性规则（查表）</code> · 版本 v0.10（指纹见 <code>version.txt</code>）</span>
+          <span>引擎：<code>确定性规则（查表）</code> · 版本 v0.11（指纹见 <code>version.txt</code>）</span>
+          <button type="button" id="scrollAdjustBtn" class="linkbtn">⚙ 调整下滑位置</button>
           <a href="../index.html" style="color:var(--accent);text-decoration:none">← 返回目录</a>
           <a href="../bisect/index.html" style="color:var(--dim);text-decoration:none">BISECT 副玩法 →</a>
         </footer>
@@ -132,6 +133,15 @@
   </div>
 
   <script type="module" src="./app.js"></script>
+
+  <!-- 下滑位置调整横幅（footer ⚙ 进入；滚到理想位 → 保存 → 隐藏） -->
+  <div id="scrollBar" class="scroll-bar hidden">
+    <span>下滑调整模式：滚到你希望审议区停留的位置 →</span>
+    <span class="sb-delta" id="scrollDelta">当前偏移 0px</span>
+    <button type="button" id="scrollSave" class="primary sm">保存位置</button>
+    <button type="button" id="scrollReset" class="ghost sm">恢复默认</button>
+    <button type="button" id="scrollCancel" class="ghost sm">取消</button>
+  </div>
 
   <!-- 结论区悬浮放大镜（hover 预览 / click 钉住 / Esc 关；标题栏可拖移；样式与逻辑见 style.css 与 app.js） -->
   <div id="zoom" class="zoom hidden" role="dialog" aria-label="结论放大视图">

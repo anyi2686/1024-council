@@ -97,17 +97,64 @@ function setConv(resolved, total) {
   el.classList.toggle('ok', total > 0 && resolved === total);
 }
 
-/** 开始审议后丝滑下滑到审议区：环形图面板垂直居中（评委点完就知道该看哪）。 */
-function scrollToStage() {
+/** 开始审议后丝滑下滑到审议区：环形图面板垂直居中 + 用户自定义偏移（评委点完就知道该看哪）。 */
+function scrollBaseTarget() {
   const el = $('stage-panel');
-  if (!el || typeof el.getBoundingClientRect !== 'function') return;
-  const reduce = typeof window.matchMedia === 'function' &&
-    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (!el || typeof el.getBoundingClientRect !== 'function') return 0;
   const r = el.getBoundingClientRect();
   // 面板中心对视口中心：target = 面板顶 - (视口高 - 面板高)/2
-  const y = r.top + (window.scrollY || 0) - Math.max(0, (window.innerHeight - r.height) / 2);
-  window.scrollTo({ top: Math.max(0, y), behavior: reduce ? 'auto' : 'smooth' });
+  return Math.max(0, r.top + (window.scrollY || 0) - Math.max(0, (window.innerHeight - r.height) / 2));
 }
+function scrollToStage() {
+  if (scrollAdjust) return; // 调整模式中不抢用户的滚动控制权
+  const reduce = typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  window.scrollTo({ top: Math.max(0, scrollBaseTarget() + scrollDelta), behavior: reduce ? 'auto' : 'smooth' });
+}
+
+/* ── 下滑位置手动调整（anyi2 2026-10-28）：footer ⚙ 进入调整模式 → 手动滚到理想位 →
+   保存（偏移量持久化）→ 横幅隐藏；恢复默认一键回居中。调整模式中 start() 不抢滚动。 ── */
+const SCROLL_KEY = 'council-scroll-delta-v1';
+let scrollDelta = 0;
+let scrollAdjust = false;
+try { scrollDelta = Number(localStorage.getItem(SCROLL_KEY) || 0) || 0; } catch (e) { scrollDelta = 0; }
+
+function scrollAdjustLabel() {
+  const btn = $('scrollAdjustBtn');
+  if (btn) btn.textContent = scrollDelta !== 0 ? '✓ 下滑位置已自定义 · 重新调整' : '⚙ 调整下滑位置';
+}
+function scrollAdjustEnter() {
+  scrollAdjust = true;
+  $('scrollBar').classList.remove('hidden');
+  // 先到当前生效位，用户在基础上微调
+  const reduce = typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  window.scrollTo({ top: Math.max(0, scrollBaseTarget() + scrollDelta), behavior: reduce ? 'auto' : 'smooth' });
+  scrollAdjustShowDelta();
+}
+function scrollAdjustShowDelta() {
+  const d = Math.round((window.scrollY || 0) - scrollBaseTarget());
+  const el = $('scrollDelta');
+  if (el) el.textContent = `当前偏移 ${d >= 0 ? '+' : ''}${d}px`;
+}
+function scrollAdjustSave() {
+  scrollDelta = Math.round((window.scrollY || 0) - scrollBaseTarget());
+  try { localStorage.setItem(SCROLL_KEY, String(scrollDelta)); } catch (e) { /* 写入失败则仅本会话 */ }
+  scrollAdjustExit();
+  setStage(`下滑位置已保存（偏移 ${scrollDelta >= 0 ? '+' : ''}${scrollDelta}px）`);
+}
+function scrollAdjustReset() {
+  scrollDelta = 0;
+  try { localStorage.removeItem(SCROLL_KEY); } catch (e) { /* ignore */ }
+  scrollAdjustExit();
+  setStage('下滑位置已恢复默认（环形图居中）');
+}
+function scrollAdjustExit() {
+  scrollAdjust = false;
+  $('scrollBar').classList.add('hidden');
+  scrollAdjustLabel();
+}
+window.addEventListener('scroll', () => { if (scrollAdjust) scrollAdjustShowDelta(); }, { passive: true });
 
 // ─────────────────────────────────────────────
 // 重置（run_started 前清场）
@@ -444,6 +491,13 @@ document.querySelectorAll('.preset').forEach((btn) => {
     setStage('已填入提案 · 点「开始审议」开跑');
   });
 });
+
+// 下滑位置手动调整（anyi2）：进入 / 保存 / 恢复默认 / 取消
+$('scrollAdjustBtn').addEventListener('click', scrollAdjustEnter);
+$('scrollSave').addEventListener('click', scrollAdjustSave);
+$('scrollReset').addEventListener('click', scrollAdjustReset);
+$('scrollCancel').addEventListener('click', scrollAdjustExit);
+scrollAdjustLabel(); // 有历史自定义则启动即显示状态
 
 // ─────────────────────────────────────────────
 // 结论区悬浮放大镜（hover 预览 / click 钉住 / Esc 或罩外点击关闭）
