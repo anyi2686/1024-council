@@ -97,13 +97,15 @@ function setConv(resolved, total) {
   el.classList.toggle('ok', total > 0 && resolved === total);
 }
 
-/** 开始审议后丝滑下滑到审议区（HUD + 环形图进入视口）——评委点完就知道该看哪。 */
-function scrollToHud() {
-  const el = $('hud');
+/** 开始审议后丝滑下滑到审议区：环形图面板垂直居中（评委点完就知道该看哪）。 */
+function scrollToStage() {
+  const el = $('stage-panel');
   if (!el || typeof el.getBoundingClientRect !== 'function') return;
   const reduce = typeof window.matchMedia === 'function' &&
     window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const y = el.getBoundingClientRect().top + (window.scrollY || 0) - 12;
+  const r = el.getBoundingClientRect();
+  // 面板中心对视口中心：target = 面板顶 - (视口高 - 面板高)/2
+  const y = r.top + (window.scrollY || 0) - Math.max(0, (window.innerHeight - r.height) / 2);
   window.scrollTo({ top: Math.max(0, y), behavior: reduce ? 'auto' : 'smooth' });
 }
 
@@ -374,7 +376,7 @@ function handleEvent(e) {
 function start(proposal) {
   if (current?.cancel) current.cancel();
   resetUI();
-  scrollToHud(); // 丝滑下滑到审议区：评委点完就知道该看哪
+  scrollToStage(); // 丝滑下滑到审议区：评委点完就知道该看哪
   const r = runCouncil(proposal, (e) => {
     // 并发保护：旧 run 的事件一律忽略（配合 cancel 清定时器，双保险）
     if (current !== r) return;
@@ -452,11 +454,28 @@ const zoomEl = $('zoom');
 const zoomInner = $('zoomInner');
 let zoomPinned = false;
 let zoomTimer = null;
-let zoomManual = false; // 手动拖移过后，自动定位让位（位置即最终位置）
+/* 悬浮窗位置：按目标元素分键记忆（各自独立），localStorage 持久化（刷新不丢）。 */
+const ZOOM_POS_KEY = 'council-zoom-pos-v1';
+let zoomPos = {};
+try { zoomPos = JSON.parse(localStorage.getItem(ZOOM_POS_KEY) || '{}') || {}; } catch (e) { zoomPos = {}; }
+let zoomCurKey = null;
+function zoomKeyOf(block) { return block.getAttribute('data-zoom-title') || block.className || 'default'; }
+function zoomSavePos(key, left, top) {
+  zoomPos[key] = { l: Math.round(left), t: Math.round(top) };
+  try { localStorage.setItem(ZOOM_POS_KEY, JSON.stringify(zoomPos)); } catch (e) { /* 隐私模式等写入失败则仅会话有效 */ }
+}
 
-/** 定位：贴触发块右侧，空间不够翻左侧，再不够居中；垂直方向钳在视口内。手动拖移过则不再自动定位。 */
+/** 定位：该目标有记忆位置则恢复（钳位防跨屏幕尺寸出屏），否则贴触发块右侧自动定位。 */
 function zoomPlace(block) {
-  if (zoomManual) return; // 用户拖过的位置即最终位置，尊重
+  const key = zoomKeyOf(block);
+  const saved = zoomPos[key];
+  if (saved) {
+    const w = zoomEl.offsetWidth;
+    const h = zoomEl.offsetHeight;
+    zoomEl.style.left = `${Math.min(saved.l, Math.max(4, window.innerWidth - w - 4))}px`;
+    zoomEl.style.top = `${Math.min(saved.t, Math.max(4, window.innerHeight - h - 4))}px`;
+    return;
+  }
   const r = block.getBoundingClientRect();
   const zw = zoomEl.offsetWidth;
   const zh = zoomEl.offsetHeight;
@@ -471,6 +490,7 @@ function zoomPlace(block) {
 
 function zoomOpen(block) {
   const title = block.getAttribute('data-zoom-title') || '详情';
+  zoomCurKey = zoomKeyOf(block);
   zoomInner.innerHTML = `<h3 class="zoom-title">${title}</h3><div class="zoom-body">${block.innerHTML}</div>`;
   zoomEl.classList.remove('hidden');
   zoomEl.classList.remove('handle-hidden'); // 每次打开重新显示手柄（调整完再淡出）
@@ -544,7 +564,6 @@ zoomHandle.addEventListener('pointermove', (e) => {
   const y = Math.min(Math.max(4, e.clientY - zoomDragOff.y), Math.max(4, window.innerHeight - h - 4));
   zoomEl.style.left = `${Math.round(x)}px`;
   zoomEl.style.top = `${Math.round(y)}px`;
-  zoomManual = true;
 });
 function zoomDragEnd(e) {
   if (!zoomDragging) return;
@@ -553,6 +572,8 @@ function zoomDragEnd(e) {
   if (e && e.pointerId !== undefined && zoomHandle.releasePointerCapture) {
     try { zoomHandle.releasePointerCapture(e.pointerId); } catch (_) { /* 已释放则忽略 */ }
   }
+  // 松手即存：该窗口自己的位置（分键），刷新不丢
+  if (zoomCurKey) zoomSavePos(zoomCurKey, parseFloat(zoomEl.style.left) || 0, parseFloat(zoomEl.style.top) || 0);
   zoomEl.classList.add('handle-hidden'); // 调整完毕：手柄淡出（悬停面板可唤回）
 }
 zoomHandle.addEventListener('pointerup', zoomDragEnd);
