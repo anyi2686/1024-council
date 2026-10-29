@@ -292,15 +292,36 @@ if (!has('--no-verify')) {
   console.log('\n▶ 视角③ 外部多点探测')
   const probe = path.join('C:\\Users\\anyi2\\.workbuddy\\agent-log', 'tools', 'check-host-probe.mjs')
   if (fs.existsSync(probe)) {
-    try {
-      const output = run(NODE, [probe, SITE_URL])
-      const lines = output.split('\n').filter(line => line.includes('HTTP='))
-      const allOk = lines.length > 0 && lines.every(line => line.includes('HTTP=200'))
-      results.push({ view: '外部多点', ok: allOk, detail: `${lines.filter(l => l.includes('HTTP=200')).length}/${lines.length} 节点 200` })
+    // ⚠️ 2026-10-29 补强：check-host **偶发「start 分配不到节点」**（nodes=0），
+    //   实测 8 次里约 3 次 —— 是 check-host 节点池的问题，不是我们网络不通
+    //   （同一时刻本机 curl / 直连都正常）。⇒ **外部多点这一视角要重试几次**，
+    //   否则会把「节点池抖动」写成「已知没做」，平白留下一个假缺口。
+    let lines = []
+    let lastError = ''
+    for (let attempt = 1; attempt <= 3 && !lines.some(l => l.includes('HTTP=200')); attempt++) {
+      try {
+        const output = run(NODE, [probe, SITE_URL])
+        lines = output.split('\n').filter(line => line.includes('HTTP='))
+        if (lines.length > 0 && lines.every(line => line.includes('HTTP=200'))) break
+        if (attempt < 3) {
+          console.log(`   …第 ${attempt} 次未全通，重试`)
+          run('cmd.exe', ['/c', 'ping -n 2 127.0.0.1 > nul'])
+        }
+      } catch (error) {
+        lastError = error.message.split('\n')[0]
+        if (attempt < 3) console.log(`   …第 ${attempt} 次失败（${lastError}），重试`)
+      }
+    }
+    const okNodes = lines.filter(l => l.includes('HTTP=200')).length
+    if (lines.length > 0 && okNodes === lines.length) {
+      results.push({ view: '外部多点', ok: true, detail: `${okNodes}/${lines.length} 节点 200` })
       for (const line of lines) console.log(`   ${line.trim()}`)
-    } catch (error) {
-      results.push({ view: '外部多点', ok: false, detail: error.message.split('\n')[0] })
-      console.log(`   ❌ ${error.message.split('\n')[0]}`)
+    } else if (lines.length > 0) {
+      results.push({ view: '外部多点', ok: false, detail: `${okNodes}/${lines.length} 节点 200（check-host 节点池部分节点未回结果）` })
+      for (const line of lines) console.log(`   ${line.trim()}`)
+    } else {
+      results.push({ view: '外部多点', ok: false, detail: lastError || '探针无结果' })
+      console.log(`   ❌ ${lastError || '探针无结果'}`)
     }
   } else {
     results.push({ view: '外部多点', ok: null, detail: '探针工具不存在' })
