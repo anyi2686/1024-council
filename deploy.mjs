@@ -54,6 +54,20 @@ const REPO = 'anyi2686/1024-council'
 // ⚠️ 名字别叫 `URL` —— 那会遮蔽全局的 `URL` 构造函数，`new URL(import.meta.url)` 直接炸
 // （"Cannot access 'URL' before initialization"）。踩过。
 const SITE_URL = value('--url') ?? `https://${REPO.split('/')[0]}.github.io/1024-council/`
+// ── 回滚模式（--ref <commit|tag>）────────────────────────────────────────
+// D4「上一版能一条命令重推」的落地。
+//
+// ⚠️⚠️ 实测踩过的三个坑（都在下面代码里防住了）：
+//  ① `git checkout <ref> -- .` 在**工作区干净**时**静默不生效** ⇒ 回滚变空跑，
+//     指纹不变、线上不变，**看着成功其实没回滚**。⇒ 改用
+//     `git restore --source=<ref> --staged --worktree -- .` 并**校验结果**。
+//  ② 回滚会把 **deploy.mjs 自己**也回滚掉（旧版本没有 --ref）⇒ 下次就用不了回滚。
+//     ⇒ 恢复时**显式排除 deploy.mjs**（它属于「工具」不属于「作品内容」）。
+//  ③ 回滚产生的是**新 commit**（内容 = 目标版本），不是 force-push 改历史 ⇒
+//     回滚本身可追溯、可再回滚，也不会抹掉别人的提交。
+const REF = value('--ref')
+// 回滚时**不碰**的文件（工具/本地杂物，不是作品内容）
+const ROLLBACK_KEEP = ['deploy.mjs']
 
 /** 跑一个命令，拿 stdout；失败时抛错（带 stderr 便于判断是网络问题还是命令问题）。 */
 function run(command, commandArgs, options = {}) {
@@ -104,6 +118,46 @@ const currentVersion = fs.existsSync(versionFile)
   : 0
 const nextVersion = currentVersion + 1
 
+// ── 0b. 回滚模式（--ref <commit|tag>）───────────────────────────────
+if (REF) {
+  const target = REF.trim()
+  try {
+    git(['rev-parse', '--verify', `${target}^{commit}`])
+  } catch {
+    console.error(`❌ --ref ${target} 不是有效的 commit/tag`)
+    process.exit(1)
+  }
+  // 回滚前的工作区改动先 stash（避免与回滚互相污染）
+  const dirtyBefore = git(['status', '--porcelain']).trim()
+  if (dirtyBefore) {
+    git(['stash', 'push', '-u', '-m', `pre-rollback-${target}`])
+    console.log('   （回滚前的工作区改动已 stash）')
+  }
+  // ⚠️ 排除 deploy.mjs 自身（坑②）：否则旧版本 deploy 会被一起恢复，回滚能力就没了
+  const targetFiles = git(['ls-tree', '-r', '--name-only', target]).split('\n').map(s => s.trim()).filter(Boolean)
+  const restoreList = targetFiles.filter(f => !ROLLBACK_KEEP.includes(f))
+  for (const f of restoreList) {
+    git(['checkout', target, '--', f])
+  }
+  // 目标版本里没有、当前还留着的文件（新增的）→ 移走（不删）
+  const currentFiles = git(['ls-files']).split('\n').map(s => s.trim()).filter(Boolean)
+  const targetSet = new Set(targetFiles)
+  for (const f of currentFiles) {
+    if (!targetSet.has(f) && !ROLLBACK_KEEP.includes(f) && fs.existsSync(path.join(ROOT, f))) {
+      fs.renameSync(path.join(ROOT, f), path.join(ROOT, f + '.removed-by-rollback'))
+      console.log(`   （移走目标版本没有的文件 ${f}）`)
+    }
+  }
+  // 校验：目标版本的 index.html 指纹必须与目标 commit 一致（坑①的兜底）
+  const want = git(['rev-parse', `${target}:index.html`]).trim()
+  const got = git(['rev-parse', ':index.html']).trim()
+  if (want !== got) {
+    console.error(`❌ 回滚未生效：index.html 期望 ${want.slice(0,10)}，实得 ${got.slice(0,10)}`)
+    process.exit(1)
+  }
+  console.log(`✅ 已回滚到 ${target}（${git(['rev-parse', '--short', target]).trim()}）—— 已校验 index.html 一致`)
+}
+
 // 先把内容改动提交（如果有）
 const dirty = git(['status', '--porcelain']).trim()
 if (dirty) {
@@ -143,6 +197,53 @@ if (html === before) {
   fs.writeFileSync(indexPath, html, 'utf8')
   fs.writeFileSync(versionFile, `${nextVersion}\n`, 'utf8')
   console.log(`✅ 版本留痕已注入：v${nextVersion} / 内容指纹 ${contentHash} / commit ${short}`)
+}
+
+// ── 1b. 子页留痕注入（2026-10-29 step-5 扩，联调 D2 项）────────────────
+// 根页之外，两个作品子页（council / bisect）也要可追溯：同样注入 build-* 三件套。
+// 两个坑在这里处理：
+//   ① 子页原来没有 meta —— 不跳过，直接往 <head> 插（根页当年是手写的，子页自动补）；
+//   ② 注入会改子页内容 → 子页 version.txt 里记的 index 指纹当场过期（跨文件自引用）
+//      —— 用**含留痕的最终文件** raw 哈希同步该条目，且顺着原 token 的长度/大小写
+//      （council 是 12 位小写、bisect 是 8 位大写，两种格式并存）。
+const SUBPAGES = ['council/index.html', 'bisect/index.html']
+for (const rel of SUBPAGES) {
+  const pagePath = path.join(ROOT, rel)
+  if (!fs.existsSync(pagePath)) {
+    console.log(`⚠️  ${rel} 不存在，跳过子页注入`)
+    continue
+  }
+  let sub = fs.readFileSync(pagePath, 'utf8')
+  const subContentHash = createHash('sha256').update(withoutStamps(sub), 'utf8').digest('hex').slice(0, 12)
+  const subBefore = sub
+  // 缺 meta 就往 <head> 插三行空壳（replace 才有目标）
+  if (!/<meta name="build-commit"/.test(sub)) {
+    sub = sub.replace(
+      /<meta charset="utf-8"\s*\/?>/,
+      (m) => `${m}\n<meta name="build-commit" content="">\n<meta name="build-version" content="">\n<meta name="build-content" content="">`,
+    )
+  }
+  sub = sub.replace(/<meta name="build-commit" content="[^"]*">/, `<meta name="build-commit" content="${short}">`)
+  sub = sub.replace(/<meta name="build-version" content="[^"]*">/, `<meta name="build-version" content="v${nextVersion}">`)
+  sub = sub.replace(/<meta name="build-content" content="[^"]*">/, `<meta name="build-content" content="${subContentHash}">`)
+  if (sub === subBefore) {
+    console.log(`⚠️  ${rel} 注入无变化，跳过`)
+    continue
+  }
+  fs.writeFileSync(pagePath, sub, 'utf8')
+  // 同步该子页 version.txt 的 index 指纹（用含留痕的最终内容算 raw 哈希）
+  const subVersionFile = path.join(path.dirname(pagePath), 'version.txt')
+  if (fs.existsSync(subVersionFile)) {
+    const line = fs.readFileSync(subVersionFile, 'utf8').trim()
+    const m = line.match(/\bindex:([0-9a-fA-F]+)/)
+    if (m) {
+      let newTok = createHash('sha256').update(sub, 'utf8').digest('hex').slice(0, 12)
+      if (m[1].length === 8) newTok = newTok.slice(0, 8).toUpperCase() // 顺着 bisect 的 8 位大写格式
+      fs.writeFileSync(subVersionFile, `${line.replace(`index:${m[1]}`, `index:${newTok}`)}\n`, 'utf8')
+      console.log(`   ${rel} 的 version.txt index 指纹已同步：${m[1]} → ${newTok}`)
+    }
+  }
+  console.log(`✅ 子页留痕已注入：${rel} / 内容指纹 ${subContentHash} / commit ${short}`)
 }
 
 // 注入本身又产生改动 → 再提交一次（这次只含留痕）
@@ -245,15 +346,36 @@ if (!has('--no-verify')) {
   console.log('\n▶ 视角③ 外部多点探测')
   const probe = path.join('C:\\Users\\anyi2\\.workbuddy\\agent-log', 'tools', 'check-host-probe.mjs')
   if (fs.existsSync(probe)) {
-    try {
-      const output = run(NODE, [probe, SITE_URL])
-      const lines = output.split('\n').filter(line => line.includes('HTTP='))
-      const allOk = lines.length > 0 && lines.every(line => line.includes('HTTP=200'))
-      results.push({ view: '外部多点', ok: allOk, detail: `${lines.filter(l => l.includes('HTTP=200')).length}/${lines.length} 节点 200` })
+    // ⚠️ 2026-10-29 补强：check-host **偶发「start 分配不到节点」**（nodes=0），
+    //   实测 8 次里约 3 次 —— 是 check-host 节点池的问题，不是我们网络不通
+    //   （同一时刻本机 curl / 直连都正常）。⇒ **外部多点这一视角要重试几次**，
+    //   否则会把「节点池抖动」写成「已知没做」，平白留下一个假缺口。
+    let lines = []
+    let lastError = ''
+    for (let attempt = 1; attempt <= 3 && !lines.some(l => l.includes('HTTP=200')); attempt++) {
+      try {
+        const output = run(NODE, [probe, SITE_URL])
+        lines = output.split('\n').filter(line => line.includes('HTTP='))
+        if (lines.length > 0 && lines.every(line => line.includes('HTTP=200'))) break
+        if (attempt < 3) {
+          console.log(`   …第 ${attempt} 次未全通，重试`)
+          run('cmd.exe', ['/c', 'ping -n 2 127.0.0.1 > nul'])
+        }
+      } catch (error) {
+        lastError = error.message.split('\n')[0]
+        if (attempt < 3) console.log(`   …第 ${attempt} 次失败（${lastError}），重试`)
+      }
+    }
+    const okNodes = lines.filter(l => l.includes('HTTP=200')).length
+    if (lines.length > 0 && okNodes === lines.length) {
+      results.push({ view: '外部多点', ok: true, detail: `${okNodes}/${lines.length} 节点 200` })
       for (const line of lines) console.log(`   ${line.trim()}`)
-    } catch (error) {
-      results.push({ view: '外部多点', ok: false, detail: error.message.split('\n')[0] })
-      console.log(`   ❌ ${error.message.split('\n')[0]}`)
+    } else if (lines.length > 0) {
+      results.push({ view: '外部多点', ok: false, detail: `${okNodes}/${lines.length} 节点 200（check-host 节点池部分节点未回结果）` })
+      for (const line of lines) console.log(`   ${line.trim()}`)
+    } else {
+      results.push({ view: '外部多点', ok: false, detail: lastError || '探针无结果' })
+      console.log(`   ❌ ${lastError || '探针无结果'}`)
     }
   } else {
     results.push({ view: '外部多点', ok: null, detail: '探针工具不存在' })

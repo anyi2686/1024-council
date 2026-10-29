@@ -2,9 +2,9 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<meta name="build-commit" content="7334af6">
-<meta name="build-version" content="v11">
-<meta name="build-content" content="214ccddf5709">
+<meta name="build-commit" content="de08961">
+<meta name="build-version" content="v10">
+<meta name="build-content" content="6989dc53978a">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>九人议会 · 多视角审议台</title>
 <meta name="description" content="1024 造物挑战 · 九人议会 —— 把一次决策拆给四个视角，让对抗可见、可追溯、可复现。">
@@ -126,7 +126,7 @@
 
         <footer>
           <span>静态站点 · 零外链统计 · 零硬编码密钥</span>
-          <span>引擎：<code>确定性规则（查表）</code> · 版本 v0.14（指纹见 <code>version.txt</code>）</span>
+          <span>引擎：<code>确定性规则（查表）</code> · 版本 v0.16（指纹见 <code>version.txt</code>）</span>
           <button type="button" id="scrollAdjustBtn" class="linkbtn">⚙ 调整下滑位置</button>
           <a href="../index.html" style="color:var(--accent);text-decoration:none">← 返回目录</a>
           <a href="../bisect/index.html" style="color:var(--dim);text-decoration:none">BISECT 副玩法 →</a>
@@ -136,6 +136,18 @@
   </div>
 
   <script type="module" src="./app.js"></script>
+
+  <!-- 音量控制面板（anyi2 规格：拖动栏×2 + 状态栏 + 总开关；小提醒在面板底部） -->
+  <div id="audioPanel" class="audio-panel">
+    <div class="audio-head">
+      <span class="audio-title">🔊 音量</span>
+      <button type="button" id="audioSwitch" class="audio-switch" aria-pressed="true" title="音量总开关">🔊</button>
+    </div>
+    <label class="audio-row">音效 <input type="range" id="audioSfx" min="0" max="100" value="100" aria-label="音效音量"></label>
+    <label class="audio-row">背景 <input type="range" id="audioBg" min="0" max="100" value="100" aria-label="背景音音量"></label>
+    <div class="audio-status" id="audioStatus">音效 100% · 背景 100%</div>
+    <div class="audio-tip">音量在此关闭 → 面板右上角 🔊</div>
+  </div>
 
   <!-- 下滑位置调整横幅（footer ⚙ 进入；两段目标各自调；滚到理想位 → 保存 → 隐藏） -->
   <div id="scrollBar" class="scroll-bar hidden">
