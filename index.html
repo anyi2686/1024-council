@@ -149,10 +149,19 @@ proposal_received
 
         <footer>
           <span>静态站点 · 零外链统计 · 零硬编码密钥</span>
-          <span>构建：<code>placeholder-v0</code></span>
+          <span>构建：<code id="build-tag">…</code></span>
         </footer>
       </div>
     </div>
   </div>
+  <script>
+    // 版本号从 meta 读，避免与 deploy 注入的 build-* 留痕脱节
+    (function () {
+      var tag = document.getElementById("build-tag");
+      var v = document.querySelector('meta[name="build-version"]')?.content || "?";
+      var c = document.querySelector('meta[name="build-commit"]')?.content || "?";
+      if (tag) tag.textContent = v + " (" + c + ")";
+    })();
+  </script>
 </body>
 </html>
