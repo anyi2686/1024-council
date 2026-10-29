@@ -145,6 +145,53 @@ if (html === before) {
   console.log(`✅ 版本留痕已注入：v${nextVersion} / 内容指纹 ${contentHash} / commit ${short}`)
 }
 
+// ── 1b. 子页留痕注入（2026-10-29 step-5 扩，联调 D2 项）────────────────
+// 根页之外，两个作品子页（council / bisect）也要可追溯：同样注入 build-* 三件套。
+// 两个坑在这里处理：
+//   ① 子页原来没有 meta —— 不跳过，直接往 <head> 插（根页当年是手写的，子页自动补）；
+//   ② 注入会改子页内容 → 子页 version.txt 里记的 index 指纹当场过期（跨文件自引用）
+//      —— 用**含留痕的最终文件** raw 哈希同步该条目，且顺着原 token 的长度/大小写
+//      （council 是 12 位小写、bisect 是 8 位大写，两种格式并存）。
+const SUBPAGES = ['council/index.html', 'bisect/index.html']
+for (const rel of SUBPAGES) {
+  const pagePath = path.join(ROOT, rel)
+  if (!fs.existsSync(pagePath)) {
+    console.log(`⚠️  ${rel} 不存在，跳过子页注入`)
+    continue
+  }
+  let sub = fs.readFileSync(pagePath, 'utf8')
+  const subContentHash = createHash('sha256').update(withoutStamps(sub), 'utf8').digest('hex').slice(0, 12)
+  const subBefore = sub
+  // 缺 meta 就往 <head> 插三行空壳（replace 才有目标）
+  if (!/<meta name="build-commit"/.test(sub)) {
+    sub = sub.replace(
+      /<meta charset="utf-8"\s*\/?>/,
+      (m) => `${m}\n<meta name="build-commit" content="">\n<meta name="build-version" content="">\n<meta name="build-content" content="">`,
+    )
+  }
+  sub = sub.replace(/<meta name="build-commit" content="[^"]*">/, `<meta name="build-commit" content="${short}">`)
+  sub = sub.replace(/<meta name="build-version" content="[^"]*">/, `<meta name="build-version" content="v${nextVersion}">`)
+  sub = sub.replace(/<meta name="build-content" content="[^"]*">/, `<meta name="build-content" content="${subContentHash}">`)
+  if (sub === subBefore) {
+    console.log(`⚠️  ${rel} 注入无变化，跳过`)
+    continue
+  }
+  fs.writeFileSync(pagePath, sub, 'utf8')
+  // 同步该子页 version.txt 的 index 指纹（用含留痕的最终内容算 raw 哈希）
+  const subVersionFile = path.join(path.dirname(pagePath), 'version.txt')
+  if (fs.existsSync(subVersionFile)) {
+    const line = fs.readFileSync(subVersionFile, 'utf8').trim()
+    const m = line.match(/\bindex:([0-9a-fA-F]+)/)
+    if (m) {
+      let newTok = createHash('sha256').update(sub, 'utf8').digest('hex').slice(0, 12)
+      if (m[1].length === 8) newTok = newTok.slice(0, 8).toUpperCase() // 顺着 bisect 的 8 位大写格式
+      fs.writeFileSync(subVersionFile, `${line.replace(`index:${m[1]}`, `index:${newTok}`)}\n`, 'utf8')
+      console.log(`   ${rel} 的 version.txt index 指纹已同步：${m[1]} → ${newTok}`)
+    }
+  }
+  console.log(`✅ 子页留痕已注入：${rel} / 内容指纹 ${subContentHash} / commit ${short}`)
+}
+
 // 注入本身又产生改动 → 再提交一次（这次只含留痕）
 const dirtyAfter = git(['status', '--porcelain']).trim()
 if (dirtyAfter) {
