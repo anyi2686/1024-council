@@ -648,3 +648,8 @@ code { background: #161b22; padding: 1px 5px; border-radius: 3px; font-size: 12p
   .audio-panel { width: 152px; left: 8px; bottom: 8px; padding: 8px 10px; }
   .audio-tip { font-size: 10px; }
 }
+
+/* v0.16（2026-10-29 anyi2）：音量面板可拖移 */
+.audio-head { cursor: move; touch-action: none; user-select: none; }
+.audio-title::before { content: "⠿ "; color: var(--dim); font-size: 11px; } /* 拖移抓手提示 */
+.audio-panel.dragging { border-color: var(--accent); box-shadow: 0 12px 36px rgba(0, 0, 0, 0.7); }

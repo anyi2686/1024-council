@@ -560,6 +560,64 @@ $('audioBg').addEventListener('input', (e) => { audio.bg = Number(e.target.value
 $('audioSwitch').addEventListener('click', () => { audio.on = !audio.on; audioSave(); });
 audioApply(); // 初始化音量（含持久化的用户选择）
 
+// ─────────────────────────────────────────────
+// 音量面板可拖移（anyi2 2026-10-29：放右上角或手动拖，二选一我取拖移——更稳）
+// 抓面板头部任意处拖动（开关按钮除外，点了照样开关）；位置持久化；
+// 默认落右上角（用户首选位），拖哪存哪，刷新恢复，跨窗口尺寸钳位。
+// ─────────────────────────────────────────────
+const AUDIO_POS_KEY = 'council-audio-pos-v1';
+const audioPanel = $('audioPanel');
+function audioPanelClamp(l, t) {
+  const w = audioPanel.offsetWidth || 176;
+  const h = audioPanel.offsetHeight || 120;
+  return {
+    l: Math.round(Math.min(Math.max(8, l), Math.max(8, window.innerWidth - w - 8))),
+    t: Math.round(Math.min(Math.max(8, t), Math.max(8, window.innerHeight - h - 8))),
+  };
+}
+function audioPanelApply(l, t) {
+  audioPanel.style.left = `${l}px`;
+  audioPanel.style.top = `${t}px`;
+  audioPanel.style.right = 'auto';
+  audioPanel.style.bottom = 'auto';
+}
+(function audioPanelInit() {
+  let pos = null;
+  try { pos = JSON.parse(localStorage.getItem(AUDIO_POS_KEY) || 'null'); } catch (e) { /* ignore */ }
+  if (!pos || !Number.isFinite(pos.l) || !Number.isFinite(pos.t)) {
+    pos = { l: window.innerWidth - (audioPanel.offsetWidth || 176) - 16, t: 16 }; // 默认右上角
+  }
+  const c = audioPanelClamp(pos.l, pos.t);
+  audioPanelApply(c.l, c.t);
+})();
+const audioHead = audioPanel.querySelector('.audio-head');
+let audioDrag = null;
+audioHead.addEventListener('pointerdown', (e) => {
+  if (e.target.closest && e.target.closest('#audioSwitch')) return; // 开关按钮不触发拖移
+  const r = audioPanel.getBoundingClientRect();
+  audioDrag = { dx: e.clientX - r.left, dy: e.clientY - r.top };
+  audioHead.setPointerCapture(e.pointerId);
+  audioPanel.classList.add('dragging');
+  e.preventDefault();
+});
+audioHead.addEventListener('pointermove', (e) => {
+  if (!audioDrag) return;
+  const c = audioPanelClamp(e.clientX - audioDrag.dx, e.clientY - audioDrag.dy);
+  audioPanelApply(c.l, c.t);
+});
+function audioDragEnd(e) {
+  if (!audioDrag) return;
+  audioDrag = null;
+  audioPanel.classList.remove('dragging');
+  if (e && e.pointerId !== undefined && audioHead.releasePointerCapture) {
+    try { audioHead.releasePointerCapture(e.pointerId); } catch (_) { /* 已释放则忽略 */ }
+  }
+  const r = audioPanel.getBoundingClientRect();
+  try { localStorage.setItem(AUDIO_POS_KEY, JSON.stringify({ l: Math.round(r.left), t: Math.round(r.top) })); } catch (_) { /* ignore */ }
+}
+audioHead.addEventListener('pointerup', audioDragEnd);
+audioHead.addEventListener('pointercancel', audioDragEnd);
+
 $('btn-run').addEventListener('click', () => {
   const p = readInput();
   if (!p.body && !p.title) {
