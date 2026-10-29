@@ -54,20 +54,12 @@ const REPO = 'anyi2686/1024-council'
 // ⚠️ 名字别叫 `URL` —— 那会遮蔽全局的 `URL` 构造函数，`new URL(import.meta.url)` 直接炸
 // （"Cannot access 'URL' before initialization"）。踩过。
 const SITE_URL = value('--url') ?? `https://${REPO.split('/')[0]}.github.io/1024-council/`
-// ── 回滚模式（--ref <commit|tag>）────────────────────────────────────────
-// D4「上一版能一条命令重推」的落地。
-//
-// ⚠️⚠️ 实测踩过的三个坑（都在下面代码里防住了）：
-//  ① `git checkout <ref> -- .` 在**工作区干净**时**静默不生效** ⇒ 回滚变空跑，
-//     指纹不变、线上不变，**看着成功其实没回滚**。⇒ 改用
-//     `git restore --source=<ref> --staged --worktree -- .` 并**校验结果**。
-//  ② 回滚会把 **deploy.mjs 自己**也回滚掉（旧版本没有 --ref）⇒ 下次就用不了回滚。
-//     ⇒ 恢复时**显式排除 deploy.mjs**（它属于「工具」不属于「作品内容」）。
-//  ③ 回滚产生的是**新 commit**（内容 = 目标版本），不是 force-push 改历史 ⇒
-//     回滚本身可追溯、可再回滚，也不会抹掉别人的提交。
+// ⚠️ 2026-10-29 新增 --ref：**回滚用**（D4「上一版能一条命令重推」）。
+//   用法：node deploy.mjs --ref <commit-sha|tag>
+//   行为：把该 commit 的内容恢复到工作树 → 注入留痕 → 提交 → 推送 → 三视角验证。
+//   ⚠️ 回滚同样会**产生一个新 commit**（内容等于目标版本），不是 force-push 改历史 ——
+//   这样回滚本身也可追溯、可再回滚。
 const REF = value('--ref')
-// 回滚时**不碰**的文件（工具/本地杂物，不是作品内容）
-const ROLLBACK_KEEP = ['deploy.mjs']
 
 /** 跑一个命令，拿 stdout；失败时抛错（带 stderr 便于判断是网络问题还是命令问题）。 */
 function run(command, commandArgs, options = {}) {
@@ -133,18 +125,21 @@ if (REF) {
     git(['stash', 'push', '-u', '-m', `pre-rollback-${target}`])
     console.log('   （回滚前的工作区改动已 stash）')
   }
-  // ⚠️ 排除 deploy.mjs 自身（坑②）：否则旧版本 deploy 会被一起恢复，回滚能力就没了
+  // 逐文件从目标版本恢复（坑①：整目录 checkout 在工作区干净时静默失效）
+  // ⚠️ 排除 deploy.mjs 自身（坑②）
   const targetFiles = git(['ls-tree', '-r', '--name-only', target]).split('\n').map(s => s.trim()).filter(Boolean)
-  const restoreList = targetFiles.filter(f => !ROLLBACK_KEEP.includes(f))
-  for (const f of restoreList) {
-    git(['checkout', target, '--', f])
+  for (const f of targetFiles) {
+    if (ROLLBACK_KEEP.includes(f)) continue
+    try { git(['checkout', target, '--', f]) } catch {}
   }
-  // 目标版本里没有、当前还留着的文件（新增的）→ 移走（不删）
-  const currentFiles = git(['ls-files']).split('\n').map(s => s.trim()).filter(Boolean)
+  // 目标版本没有、当前还留着的文件 → 移走（不删）
   const targetSet = new Set(targetFiles)
+  const currentFiles = git(['ls-files']).split('\n').map(s => s.trim()).filter(Boolean)
   for (const f of currentFiles) {
-    if (!targetSet.has(f) && !ROLLBACK_KEEP.includes(f) && fs.existsSync(path.join(ROOT, f))) {
-      fs.renameSync(path.join(ROOT, f), path.join(ROOT, f + '.removed-by-rollback'))
+    if (targetSet.has(f) || ROLLBACK_KEEP.includes(f)) continue
+    const abs = path.join(ROOT, f)
+    if (fs.existsSync(abs)) {
+      fs.renameSync(abs, abs + '.removed-by-rollback')
       console.log(`   （移走目标版本没有的文件 ${f}）`)
     }
   }
