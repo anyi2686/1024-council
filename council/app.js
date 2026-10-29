@@ -507,13 +507,9 @@ const sfxArrow = new Audio('./arrow.wav');  // 箭头出现同步
 const sfxClick = new Audio('./click.wav');  // 开始审议按钮
 const sfxHover = new Audio('./hover.wav');  // 悬浮窗弹出
 const sfxBg = new Audio('./bg.wav');       // 背景音（极轻循环）
-sfxWake.volume = 0.4;
-sfxArrow.volume = 0.35;
-sfxClick.volume = 0.25;
-sfxHover.volume = 0.4;
-sfxBg.volume = 0.4;
 sfxBg.loop = true;
 [sfxWake, sfxArrow, sfxClick, sfxHover, sfxBg].forEach((a) => { a.preload = 'auto'; });
+// 音量在下方「音量控制面板」段落统一 apply（声明在彼处，避免 TDZ）
 
 function playSfx(a) {
   try {
@@ -525,6 +521,44 @@ function playSfx(a) {
 
 // 背景音：首次用户交互后启动（浏览器自动播放策略，autoplay 不强制）
 document.addEventListener('pointerdown', () => playSfx(sfxBg), { once: true });
+
+// ─────────────────────────────────────────────
+// 音量控制面板（anyi2 2026-10-29 规格，联调日交付）
+// 拖动栏×2（音效/背景）+ 状态栏 + 总开关 + 「音量在此关闭」小提醒；
+// 滑块是相对豆包 v0.14 基础音量的比例（默认 100% = 她的平衡，一行未改）；
+// anyi2 试听定值后改 AUDIO_DEFAULT 烙死，滑块仍留给评委自调。
+// ─────────────────────────────────────────────
+const AUDIO_KEY = 'council-audio-v1';
+const SFX_BASE = { wake: 0.4, arrow: 0.35, click: 0.25, hover: 0.4 }; // 豆包 v0.14 平衡
+const BG_BASE = 0.4;
+const AUDIO_DEFAULT = { sfx: 100, bg: 100, on: true }; // ← anyi2 试听后把数值改这里
+const audio = { ...AUDIO_DEFAULT };
+try { Object.assign(audio, JSON.parse(localStorage.getItem(AUDIO_KEY) || '{}')); } catch (e) { /* ignore */ }
+
+function audioApply() {
+  const k = audio.on ? 1 : 0;
+  sfxWake.volume = SFX_BASE.wake * audio.sfx / 100 * k;
+  sfxArrow.volume = SFX_BASE.arrow * audio.sfx / 100 * k;
+  sfxClick.volume = SFX_BASE.click * audio.sfx / 100 * k;
+  sfxHover.volume = SFX_BASE.hover * audio.sfx / 100 * k;
+  sfxBg.volume = BG_BASE * audio.bg / 100 * k;
+  const st = $('audioStatus');
+  if (st) st.textContent = audio.on ? `音效 ${audio.sfx}% · 背景 ${audio.bg}%` : '已关闭';
+  const sw = $('audioSwitch');
+  if (sw) {
+    sw.textContent = audio.on ? '🔊' : '🔇';
+    sw.setAttribute('aria-pressed', String(audio.on));
+  }
+}
+function audioSave() {
+  try { localStorage.setItem(AUDIO_KEY, JSON.stringify(audio)); } catch (e) { /* ignore */ }
+  audioApply();
+}
+// 拖动滑块即调即存（关了的情况下拖动=重开，与小提醒文案一致）
+$('audioSfx').addEventListener('input', (e) => { audio.sfx = Number(e.target.value) || 0; audio.on = true; audioSave(); });
+$('audioBg').addEventListener('input', (e) => { audio.bg = Number(e.target.value) || 0; audio.on = true; audioSave(); });
+$('audioSwitch').addEventListener('click', () => { audio.on = !audio.on; audioSave(); });
+audioApply(); // 初始化音量（含持久化的用户选择）
 
 $('btn-run').addEventListener('click', () => {
   const p = readInput();
