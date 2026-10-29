@@ -593,7 +593,8 @@ function audioPanelApply(l, t) {
 const audioHead = audioPanel.querySelector('.audio-head');
 let audioDrag = null;
 audioHead.addEventListener('pointerdown', (e) => {
-  if (e.target.closest && e.target.closest('#audioSwitch')) return; // 开关按钮不触发拖移
+  const t = e.target;
+  if (t && t.closest && t.closest('#audioSwitch')) return; // 开关按钮不触发拖移
   const r = audioPanel.getBoundingClientRect();
   audioDrag = { dx: e.clientX - r.left, dy: e.clientY - r.top };
   audioHead.setPointerCapture(e.pointerId);
