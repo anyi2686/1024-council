@@ -60,6 +60,10 @@ const SITE_URL = value('--url') ?? `https://${REPO.split('/')[0]}.github.io/1024
 //   ⚠️ 回滚同样会**产生一个新 commit**（内容等于目标版本），不是 force-push 改历史 ——
 //   这样回滚本身也可追溯、可再回滚。
 const REF = value('--ref')
+// 回滚时**不碰**的文件（工具，不是作品内容）—— 否则回滚会把 deploy.mjs 自己也带回旧版（就没有 --ref 了）
+const ROLLBACK_KEEP = ['deploy.mjs']
+// 提交时只包含的**作品内容**路径 —— 不打包他人未提交的改动（实测差点把豆包在做的音量折叠一起提交掉）
+const CONTENT_PATHS = ['council', 'bisect', 'index.html', 'version.txt']
 
 /** 跑一个命令，拿 stdout；失败时抛错（带 stderr 便于判断是网络问题还是命令问题）。 */
 function run(command, commandArgs, options = {}) {
@@ -156,9 +160,24 @@ if (REF) {
 // 先把内容改动提交（如果有）
 const dirty = git(['status', '--porcelain']).trim()
 if (dirty) {
-  git(['add', '-A'])
-  git(['-c', 'user.name=anyi2686', '-c', 'user.email=anyi2686@qq.com', 'commit', '-m', `feat: 作品内容更新（v${nextVersion}）`])
-  console.log(`✅ 内容改动已提交（v${nextVersion}）`)
+  // ⚠️ 2026-10-29 补强：原来的 `git add -A` 会把**别人未提交的改动**一起打包进这次提交
+  //   （实测差点把豆包在做的「音量面板折叠」一起提交掉）。⇒ 现在**只提交作品内容**
+  //   （council/ bisect/ index.html version.txt）；工作区里其它改动**明确报出来**，
+  //   由人自己处理 —— 绝不静默替别人提交。
+  const dirtyLines = dirty.split('\n').filter(Boolean)
+  const pathOf = line => line.slice(3).trim().replace(/^"|"$/g, '')
+  const isContent = f => CONTENT_PATHS.some(p => f === p || f.startsWith(p + '/'))
+  const foreign = dirtyLines.map(pathOf).filter(f => !f.startsWith('"') && !isContent(f))
+  if (foreign.length) {
+    console.log('⚠️  以下改动不属于作品内容，**未被本次提交包含**（请自行处理）：')
+    for (const f of foreign) console.log(`     ${f}`)
+  }
+  const contentDirty = dirtyLines.map(pathOf).filter(f => !f.startsWith('"') && isContent(f))
+  if (contentDirty.length) {
+    git(['add', '--', ...CONTENT_PATHS])
+    git(['-c', 'user.name=anyi2686', '-c', 'user.email=anyi2686@qq.com', 'commit', '-m', `feat: 作品内容更新（v${nextVersion}）`])
+    console.log(`✅ 内容改动已提交（v${nextVersion}）`)
+  }
 }
 
 const indexPath = path.join(ROOT, 'index.html')
