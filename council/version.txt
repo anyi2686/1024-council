@@ -1,1 +1,1 @@
-v0.16 2026-10-29 (sha256:12) index:96de446f3b0b app:ece0b3c06556 engine:fb4d89fa9683 style:a0c648484e03 demo-data:aeed538e57ce wake:54fc421cc657 arrow:aa956f1115b7 click:22f8a788e4a1 hover:0af903c2232b bg:e94cd969b69e
+v0.14 2026-10-28 (sha256:12) index:214ccddf5709 app:a3b4fa132d01 engine:fb4d89fa9683 style:f227d3a401d8 demo-data:aeed538e57ce wake:54fc421cc657 arrow:aa956f1115b7 click:22f8a788e4a1 hover:0af903c2232b bg:e94cd969b69e
