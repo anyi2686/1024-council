@@ -155,6 +155,27 @@ proposal_received
     </div>
   </div>
   <script>
+/* WorkBuddy sites：静态资源不带 ?sharecode= 会 403（无 cookie 时）。
+   本页的直达卡片（九人议会 / BISECT）也是裸路径 ⇒ 点击会跳到 403 错误页。
+   这里统一给所有内部 <a href> 补上 sharecode（sharecode 从当前页面 URL 动态取）。
+   —— 该问题只在 WorkBuddy sites 托管时出现；GitHub Pages 无此限制。 */
+(function () {
+  var sc = new URL(location.href).searchParams.get('sharecode') || '';
+  if (!sc) return;
+  var q = '?sharecode=' + encodeURIComponent(sc);
+  var fix = function () {
+    document.querySelectorAll('a[href]').forEach(function (a) {
+      var href = a.getAttribute('href') || '';
+      if (!href || href.charAt(0) === '#' || /^(https?:)?\/\//.test(href) || href.indexOf('sharecode=') >= 0) return;
+      if (href.indexOf('.html') < 0) return;
+      a.setAttribute('href', href + q);
+    });
+  };
+  fix();
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fix);
+})();
+</script>
+<script>
     // 版本号从 meta 读，避免与 deploy 注入的 build-* 留痕脱节
     (function () {
       var tag = document.getElementById("build-tag");

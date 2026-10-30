@@ -46,6 +46,23 @@
   ms.textContent = "import('./app.js' + " + JSON.stringify(q) + ");";
   document.head.appendChild(ms);
 
+
+  // ⑤ 页面内导航：所有内部 <a href> 也补上 sharecode
+  //    （裸路径在 sites 上会 403 —— 评审点「返回目录 / BISECT」就会跳到错误页）
+  var fixLinks = function () {
+    document.querySelectorAll('a[href]').forEach(function (a) {
+      var href = a.getAttribute('href') || '';
+      if (!href || href.charAt(0) === '#' || /^(https?:)?\/\//.test(href) || href.indexOf('sharecode=') >= 0) return;
+      if (href.indexOf('.html') < 0) return;
+      a.setAttribute('href', href + q);
+    });
+  };
+  fixLinks();
+  // DOM 还没建完时也跑一次（module 脚本可能后续插入链接）
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', fixLinks);
+  }
+
   // ④ 音效：给 Audio 构造器补 query（不改 app.js）
   if (q) {
     var OrigAudio = window.Audio;

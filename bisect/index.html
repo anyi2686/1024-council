@@ -59,7 +59,28 @@
   </section>
 </main>
 <footer><span>BISECT <span id="ver">v0.2</span> · 纯前端 · 零依赖 · 判定查表不随机（可复现） · <code>?autoplay=1</code> 可自动跑</span> <a href="../index.html" style="color:#58a6ff;text-decoration:none">← 返回目录</a> <a href="../council/index.html" style="color:#6e7681;text-decoration:none">九人议会 →</a></footer>
-<script src="data.js"></script>
+<script>
+/* WorkBuddy sites：静态资源不带 ?sharecode= 会 403（无 cookie 时）。
+   本页内部链接（返回目录 / 九人议会）也是裸路径 ⇒ 点击会跳到 403 错误页。
+   这里统一给所有内部 <a href> 补上 sharecode（sharecode 从当前页面 URL 动态取）。
+   —— 该问题只在 WorkBuddy sites 托管时出现；GitHub Pages 无此限制。 */
+(function () {
+  var sc = new URL(location.href).searchParams.get('sharecode') || '';
+  if (!sc) return;
+  var q = '?sharecode=' + encodeURIComponent(sc);
+  var fix = function () {
+    document.querySelectorAll('a[href]').forEach(function (a) {
+      var href = a.getAttribute('href') || '';
+      if (!href || href.charAt(0) === '#' || /^(https?:)?\/\//.test(href) || href.indexOf('sharecode=') >= 0) return;
+      if (href.indexOf('.html') < 0) return;
+      a.setAttribute('href', href + q);
+    });
+  };
+  fix();
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fix);
+})();
+</script>
+  <script src="data.js"></script>
 <script src="bisect.js"></script>
 </body>
 </html>
