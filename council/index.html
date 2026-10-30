@@ -135,7 +135,21 @@
     </div>
   </div>
 
-  <script type="module" src="./app.js"></script>
+  <script type="module">
+/* WorkBuddy sites 静态资源不带 ?sharecode= 会 403 ⇒ ES module 的**嵌套 import 不继承**
+   页面 query ⇒ 首次打开时模块链必断（白屏，刷新一次才恢复）。
+   修法：先带 sharecode 取一次自身把 __wb_rsc cookie 种下，再动态 import 主模块。
+   —— 该问题只在 WorkBuddy sites 托管时出现；GitHub Pages 无此限制，两边都能跑。 */
+(function () {
+  var u = new URL(location.href);
+  var sc = u.searchParams.get('sharecode');
+  var go = function () { import('./app.js' + (sc ? '?sharecode=' + sc : '')); };
+  if (!sc) { go(); return; }
+  fetch(u.pathname + u.search, { credentials: 'same-origin' })
+    .then(function (r) { return r.text(); })
+    .then(go, go);
+})();
+</script>
 
   <!-- 音量控制面板（anyi2 规格：拖动栏×2 + 状态栏 + 总开关；小提醒在面板底部） -->
   <div id="audioPanel" class="audio-panel">
