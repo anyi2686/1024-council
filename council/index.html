@@ -8,7 +8,55 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>九人议会 · 多视角审议台</title>
 <meta name="description" content="1024 造物挑战 · 九人议会 —— 把一次决策拆给四个视角，让对抗可见、可追溯、可复现。">
-<link rel="stylesheet" href="./style.css">
+<script>
+/* WorkBuddy sites：静态资源不带 ?sharecode= 会 403（无 cookie 时），
+   而 ES module 的嵌套 import 不继承页面 query ⇒ 首次打开必白屏（刷新一次才恢复）。
+   本段一次性把 **CSS / JS / 音效** 全部改成带 sharecode 的 URL（**不改任何 JS 源文件**）：
+     ① <link>：移走原本的裸路径 link，插入带 query 的新 link（importmap 管不到 <link>）
+     ② importmap：把 './engine.js' './demo-data.js' 重映射到带 query 的 URL
+     ③ 顶层模块：改成 inline module 动态 import('./app.js'+q)（importmap 管不到 <script src>）
+     ④ 音效：patch Audio 构造器，给 './x.wav' 自动补 query（app.js 里是 new Audio('./x.wav')）
+   sharecode 从当前页面 URL 动态取 ⇒ 换 sharecode 不用改本文件。
+   —— 该问题只在 WorkBuddy sites 托管时出现；GitHub Pages 无此限制，两边都能跑。
+   —— 判据（服务端实测）：路径带 ?sharecode= → 200；路径不带 query 但带 __wb_rsc cookie → 200；
+      两者皆无 → 403。⇒ 只要让每个资源都带上 query，就完全不依赖 cookie。 */
+(function () {
+  var sc = new URL(location.href).searchParams.get('sharecode') || '';
+  var q = sc ? '?sharecode=' + encodeURIComponent(sc) : '';
+
+  // ① CSS：源码里**已删掉**裸 <link>（预加载扫描器会抢先发裸路径请求，inline script 拦不住），
+  //    这里动态插入带 query 的 link。
+  var nl = document.createElement('link');
+  nl.rel = 'stylesheet';
+  nl.href = './style.css' + q;
+  document.head.appendChild(nl);
+
+  // ② importmap（嵌套 import）
+  var im = document.createElement('script');
+  im.type = 'importmap';
+  im.textContent = JSON.stringify({ imports: {
+    './engine.js': './engine.js' + q,
+    './demo-data.js': './demo-data.js' + q
+  }});
+  document.head.appendChild(im);
+
+  // ③ 顶层模块（<script src> importmap 管不到）
+  var ms = document.createElement('script');
+  ms.type = 'module';
+  ms.textContent = "import('./app.js' + " + JSON.stringify(q) + ");";
+  document.head.appendChild(ms);
+
+  // ④ 音效：给 Audio 构造器补 query（不改 app.js）
+  if (q) {
+    var OrigAudio = window.Audio;
+    window.Audio = function (src) {
+      if (typeof src === 'string' && src.charAt(0) === '.' && src.indexOf('?') < 0) src = src + q;
+      return new OrigAudio(src);
+    };
+    window.Audio.prototype = OrigAudio.prototype;
+  }
+})();
+</script>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='2' fill='%230b0e14'/%3E%3Cpath d='M3 5l3 3-3 3M8.5 11H13' stroke='%2358a6ff' stroke-width='1.4' fill='none' stroke-linecap='round'/%3E%3C/svg%3E">
 </head>
 <body>
@@ -135,25 +183,7 @@
     </div>
   </div>
 
-  <script>
-/* WorkBuddy sites：静态资源不带 ?sharecode= 会 403，而 ES module 的**嵌套 import
-   不继承页面 query** ⇒ 首次打开模块链必断（白屏，刷新一次才恢复）。
-   修法：**动态 importmap** 把每个模块重映射到带 sharecode 的 URL。
-   sharecode 从当前页面 URL 动态取，换 sharecode 不用改本文件。
-   —— 该问题只在 WorkBuddy sites 托管时出现；GitHub Pages 无此限制，两边都能跑。 */
-(function () {
-  var sc = new URL(location.href).searchParams.get('sharecode') || '';
-  var q = sc ? '?sharecode=' + encodeURIComponent(sc) : '';
-  var s = document.createElement('script');
-  s.type = 'importmap';
-  s.textContent = JSON.stringify({ imports: {
-    './engine.js': './engine.js' + q,
-    './demo-data.js': './demo-data.js' + q
-  }});
-  document.head.appendChild(s);
-})();
-</script>
-<script type="module" src="./app.js"></script>
+  
 
   <!-- 音量控制面板（anyi2 规格：拖动栏×2 + 状态栏 + 总开关；小提醒在面板底部） -->
   <div id="audioPanel" class="audio-panel">
